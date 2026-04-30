@@ -6,11 +6,13 @@ from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
 from django.db.models import Sum
 
-from .models import Cart, CartItem, Order, OrderItem, Commission
+from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder
 from products.models import Product, ProductVariation
 from accounts.models import Address
 from accounts.views import IsAgent
-from .serializers import CartSerializer, OrderSerializer, CommissionSerializer
+from .serializers import (
+    CartSerializer, OrderSerializer, CommissionSerializer, SampleOrderSerializer,
+)
 
 
 # ── Cart ──────────────────────────────────────────────────────────────────────
@@ -202,3 +204,33 @@ class AgentLedgerSummaryView(APIView):
             'total_paid':   str(total_paid),
             'balance_due':  str(balance_due),
         })
+
+
+# ── Agent: Sample Orders ──────────────────────────────────────────────────────
+
+class AgentSampleOrdersListView(generics.ListAPIView):
+    """Returns all sample orders for buyers assigned to the logged-in agent."""
+    permission_classes = [IsAgent]
+    serializer_class   = SampleOrderSerializer
+
+    def get_queryset(self):
+        return SampleOrder.objects.filter(
+            agent=self.request.user
+        ).select_related('buyer', 'agent').order_by('-date')
+
+
+# ── Agent: Buyer Orders ───────────────────────────────────────────────────────
+
+class AgentOrdersListView(generics.ListAPIView):
+    """Returns all orders placed by buyers assigned to the logged-in agent."""
+    permission_classes = [IsAgent]
+    serializer_class   = OrderSerializer
+
+    def get_queryset(self):
+        return Order.objects.filter(
+            user__assigned_agent=self.request.user
+        ).select_related(
+            'user', 'shipping_address', 'billing_address'
+        ).prefetch_related(
+            'items__variation__product'
+        ).order_by('-created_at')

@@ -48,6 +48,12 @@ class Order(models.Model):
     payment_method   = models.CharField(max_length=20, choices=PaymentMethod.choices, default=PaymentMethod.BANK_TRANSFER)
     payment_status   = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     total_amount     = models.DecimalField(max_digits=10, decimal_places=2)
+
+    # Tracking fields
+    courier_name     = models.CharField(max_length=100, null=True, blank=True)
+    tracking_number  = models.CharField(max_length=100, null=True, blank=True)
+    tracking_url     = models.URLField(null=True, blank=True)
+
     created_at       = models.DateTimeField(auto_now_add=True)
     updated_at       = models.DateTimeField(auto_now=True)
 
@@ -85,3 +91,27 @@ class Commission(models.Model):
 
     def __str__(self):
         return f"Commission — {self.agent.email} | Order#{self.order.pk} | ₹{self.amount} [{self.status}]"
+
+
+class SampleOrder(models.Model):
+    design_number = models.CharField(max_length=100)
+    rate          = models.DecimalField(max_digits=10, decimal_places=2)
+    date          = models.DateField()
+    buyer         = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='sample_orders',
+    )
+    agent         = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='agent_sample_orders',
+        limit_choices_to={'is_agent': True},
+    )
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-date']
+
+    def __str__(self):
+        return f"Sample D.No.{self.design_number} — {self.buyer.email} | ₹{self.rate}"

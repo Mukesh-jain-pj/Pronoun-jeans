@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Cart, CartItem, Order, OrderItem, Commission
+from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder
 from products.models import ProductVariation
 from accounts.serializers import AddressSerializer
 
@@ -61,6 +61,7 @@ class OrderSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'user', 'status', 'payment_method', 'payment_status',
             'total_amount', 'shipping_address', 'billing_address',
+            'courier_name', 'tracking_number', 'tracking_url',
             'items', 'created_at',
         ]
 
@@ -84,3 +85,27 @@ class CommissionSerializer(serializers.ModelSerializer):
             'commission_percentage', 'amount',
             'status', 'created_at', 'paid_at',
         ]
+
+
+class SampleOrderSerializer(serializers.ModelSerializer):
+    buyer_email   = serializers.EmailField(source='buyer.email', read_only=True)
+    buyer_company = serializers.CharField(source='buyer.company_name', read_only=True)
+    buyer_name    = serializers.SerializerMethodField()
+    agent_email   = serializers.EmailField(source='agent.email', read_only=True)
+
+    class Meta:
+        model  = SampleOrder
+        fields = [
+            'id',
+            'design_number', 'rate', 'date',
+            'buyer', 'buyer_email', 'buyer_company', 'buyer_name',
+            'agent', 'agent_email',
+            'created_at',
+        ]
+        extra_kwargs = {
+            'buyer': {'write_only': True},
+            'agent': {'write_only': True},
+        }
+
+    def get_buyer_name(self, obj):
+        return f"{obj.buyer.first_name} {obj.buyer.last_name}".strip() or obj.buyer.email

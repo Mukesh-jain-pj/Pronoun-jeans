@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.utils import timezone
-from .models import Cart, CartItem, Order, OrderItem, Commission
+from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder
 
 
 class CartItemInline(admin.TabularInline):
@@ -24,11 +24,28 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display    = ['id', 'user', 'status', 'total_amount', 'created_at']
-    list_filter     = ['status']
-    search_fields   = ['user__email']
+    list_display    = ['id', 'user', 'status', 'total_amount', 'courier_name', 'tracking_number', 'created_at']
+    list_filter     = ['status', 'payment_method', 'payment_status']
+    search_fields   = ['user__email', 'tracking_number', 'courier_name']
     readonly_fields = ['total_amount', 'created_at', 'updated_at']
     inlines         = [OrderItemInline]
+
+    fieldsets = (
+        ('Order Info', {
+            'fields': ('user', 'status', 'payment_method', 'payment_status', 'total_amount'),
+        }),
+        ('Addresses', {
+            'fields': ('shipping_address', 'billing_address'),
+        }),
+        ('Tracking Information', {
+            'fields': ('courier_name', 'tracking_number', 'tracking_url'),
+            'description': 'Fill these in once the order has been dispatched.',
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
 
 
 @admin.action(description='Mark selected commissions as Paid')
@@ -38,14 +55,22 @@ def mark_as_paid(modeladmin, request, queryset):
 
 @admin.register(Commission)
 class CommissionAdmin(admin.ModelAdmin):
-    list_display   = ['id', 'agent', 'order', 'buyer', 'amount', 'commission_percentage', 'status', 'created_at', 'paid_at']
-    list_filter    = ['status', 'agent']
-    search_fields  = ['agent__email', 'order__id', 'order__user__email']
+    list_display    = ['id', 'agent', 'order', 'buyer', 'amount', 'commission_percentage', 'status', 'created_at', 'paid_at']
+    list_filter     = ['status', 'agent']
+    search_fields   = ['agent__email', 'order__id', 'order__user__email']
     readonly_fields = ['created_at', 'amount', 'commission_percentage']
-    actions        = [mark_as_paid]
-    ordering       = ['-created_at']
+    actions         = [mark_as_paid]
+    ordering        = ['-created_at']
 
     def buyer(self, obj):
         return obj.order.user.email
     buyer.short_description = 'Buyer'
     buyer.admin_order_field = 'order__user__email'
+
+
+@admin.register(SampleOrder)
+class SampleOrderAdmin(admin.ModelAdmin):
+    list_display  = ['design_number', 'buyer', 'agent', 'rate', 'date', 'created_at']
+    list_filter   = ['agent', 'date']
+    search_fields = ['design_number', 'buyer__email', 'agent__email']
+    ordering      = ['-date']
