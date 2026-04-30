@@ -4,6 +4,7 @@ from .views import (
     CheckoutView, OrderHistoryView,
     AgentCommissionsListView, AgentLedgerSummaryView,
     AgentSampleOrdersListView, AgentOrdersListView,
+    AgentOrderTrackingUpdateView,
 )
 
 urlpatterns = [
@@ -13,8 +14,8 @@ urlpatterns = [
     path('cart/items/<int:pk>/', CartItemDetailView.as_view(),  name='cart-item-detail'),
 
     # Checkout & history
-    path('checkout/', CheckoutView.as_view(),     name='checkout'),
-    path('history/',  OrderHistoryView.as_view(),  name='order-history'),
+    path('checkout/', CheckoutView.as_view(),    name='checkout'),
+    path('history/',  OrderHistoryView.as_view(), name='order-history'),
 
     # Agent — commissions & ledger
     path('agent/commissions/', AgentCommissionsListView.as_view(), name='agent-commissions'),
@@ -23,4 +24,7 @@ urlpatterns = [
     # Agent — sample orders & buyer orders
     path('agent/sample-orders/', AgentSampleOrdersListView.as_view(), name='agent-sample-orders'),
     path('agent/orders/',        AgentOrdersListView.as_view(),        name='agent-orders'),
+
+    # Agent — order tracking update
+    path('agent/orders/<int:pk>/tracking/', AgentOrderTrackingUpdateView.as_view(), name='agent-order-tracking'),
 ]

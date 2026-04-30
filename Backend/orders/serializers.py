@@ -66,6 +66,13 @@ class OrderSerializer(serializers.ModelSerializer):
         ]
 
 
+class OrderTrackingUpdateSerializer(serializers.ModelSerializer):
+    """Only exposes the three tracking fields — nothing else is writable."""
+    class Meta:
+        model  = Order
+        fields = ['courier_name', 'tracking_number', 'tracking_url']
+
+
 class CommissionSerializer(serializers.ModelSerializer):
     order_id      = serializers.IntegerField(source='order.id', read_only=True)
     order_total   = serializers.DecimalField(source='order.total_amount', max_digits=10, decimal_places=2, read_only=True)
@@ -104,7 +111,7 @@ class SampleOrderSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {
             'buyer': {'write_only': True},
-            'agent': {'write_only': True},
+            'agent': {'write_only': True, 'required': False},
         }
 
     def get_buyer_name(self, obj):

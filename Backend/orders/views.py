@@ -11,7 +11,8 @@ from products.models import Product, ProductVariation
 from accounts.models import Address
 from accounts.views import IsAgent
 from .serializers import (
-    CartSerializer, OrderSerializer, CommissionSerializer, SampleOrderSerializer,
+    CartSerializer, OrderSerializer, CommissionSerializer,
+    SampleOrderSerializer, OrderTrackingUpdateSerializer,
 )
 
 
@@ -176,20 +177,16 @@ class OrderHistoryView(APIView):
 # ── Agent: Commission & Ledger ────────────────────────────────────────────────
 
 class AgentCommissionsListView(generics.ListAPIView):
-    """Returns all commission records for the logged-in agent."""
     permission_classes = [IsAgent]
     serializer_class   = CommissionSerializer
 
     def get_queryset(self):
         return Commission.objects.filter(
             agent=self.request.user
-        ).select_related(
-            'order', 'order__user', 'agent'
-        ).order_by('-created_at')
+        ).select_related('order', 'order__user', 'agent').order_by('-created_at')
 
 
 class AgentLedgerSummaryView(APIView):
-    """Returns total earned, total paid, and balance due for the logged-in agent."""
     permission_classes = [IsAgent]
 
     def get(self, request):
@@ -209,10 +206,6 @@ class AgentLedgerSummaryView(APIView):
 # ── Agent: Sample Orders (List + Create) ──────────────────────────────────────
 
 class AgentSampleOrdersListView(generics.ListCreateAPIView):
-    """
-    GET  — returns all sample orders for the logged-in agent's buyers.
-    POST — creates a new sample order; agent is injected automatically.
-    """
     permission_classes = [IsAgent]
     serializer_class   = SampleOrderSerializer
 
@@ -222,14 +215,12 @@ class AgentSampleOrdersListView(generics.ListCreateAPIView):
         ).select_related('buyer', 'agent').order_by('-date')
 
     def perform_create(self, serializer):
-        # Agent is always the logged-in user — never taken from payload
         serializer.save(agent=self.request.user)
 
 
 # ── Agent: Buyer Orders ───────────────────────────────────────────────────────
 
 class AgentOrdersListView(generics.ListAPIView):
-    """Returns all orders placed by buyers assigned to the logged-in agent."""
     permission_classes = [IsAgent]
     serializer_class   = OrderSerializer
 
@@ -241,3 +232,19 @@ class AgentOrdersListView(generics.ListAPIView):
         ).prefetch_related(
             'items__variation__product'
         ).order_by('-created_at')
+
+
+# ── Agent: Order Tracking Update ──────────────────────────────────────────────
+
+class AgentOrderTrackingUpdateView(generics.UpdateAPIView):
+    """
+    PATCH /api/orders/agent/orders/<pk>/tracking/
+    Allows an agent to add or update tracking info for their buyers' orders only.
+    """
+    permission_classes = [IsAgent]
+    serializer_class   = OrderTrackingUpdateSerializer
+    http_method_names  = ['patch']
+
+    def get_queryset(self):
+        # Strict scope — only orders belonging to this agent's buyers
+        return Order.objects.filter(user__assigned_agent=self.request.user)

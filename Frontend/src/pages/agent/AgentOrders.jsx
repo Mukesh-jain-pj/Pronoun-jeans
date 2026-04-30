@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { Package, Loader, ExternalLink } from 'lucide-react';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Package, Loader, ExternalLink, Pencil, Plus } from 'lucide-react';
 import api from '../../api/axios';
+import UpdateTrackingModal from '../../components/agent/UpdateTrackingModal';
 
 const fmt = (val) =>
   `₹${parseFloat(val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -19,39 +20,60 @@ const StatusPill = ({ status }) => (
   </span>
 );
 
-const TrackingCell = ({ order }) => {
+const TrackingCell = ({ order, onEdit }) => {
   if (!order.tracking_number) {
-    return <span className="text-gray-400 dark:text-zinc-500 text-xs">Processing</span>;
+    return (
+      <button
+        onClick={() => onEdit(order)}
+        className="inline-flex items-center gap-1 text-xs font-semibold text-gray-500 dark:text-zinc-400 hover:text-accent border border-gray-200 dark:border-white/10 hover:border-accent/40 px-2.5 py-1.5 rounded-lg transition-colors"
+      >
+        <Plus className="w-3 h-3" /> Add Tracking
+      </button>
+    );
   }
+
   return (
-    <div className="space-y-0.5">
-      {order.courier_name && (
-        <p className="text-gray-500 dark:text-zinc-400 text-xs font-semibold">{order.courier_name}</p>
-      )}
-      {order.tracking_url ? (
-        <a href={order.tracking_url} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-xs font-mono">
-          {order.tracking_number}
-          <ExternalLink className="w-3 h-3" />
-        </a>
-      ) : (
-        <p className="text-gray-700 dark:text-zinc-300 text-xs font-mono">{order.tracking_number}</p>
-      )}
+    <div className="flex items-start gap-2">
+      <div className="space-y-0.5 flex-1 min-w-0">
+        {order.courier_name && (
+          <p className="text-gray-500 dark:text-zinc-400 text-xs font-semibold">{order.courier_name}</p>
+        )}
+        {order.tracking_url ? (
+          <a href={order.tracking_url} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline text-xs font-mono">
+            {order.tracking_number}
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <p className="text-gray-700 dark:text-zinc-300 text-xs font-mono">{order.tracking_number}</p>
+        )}
+      </div>
+      <button
+        onClick={() => onEdit(order)}
+        className="text-gray-400 dark:text-zinc-500 hover:text-accent transition-colors shrink-0 p-0.5"
+        title="Edit tracking"
+      >
+        <Pencil className="w-3.5 h-3.5" />
+      </button>
     </div>
   );
 };
 
 const AgentOrders = () => {
-  const [orders, setOrders]   = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError]     = useState('');
+  const [orders, setOrders]                         = useState([]);
+  const [loading, setLoading]                       = useState(true);
+  const [error, setError]                           = useState('');
+  const [selectedOrderForTracking, setSelectedOrderForTracking] = useState(null);
 
-  useEffect(() => {
+  const fetchOrders = useCallback(() => {
+    setLoading(true);
     api.get('orders/agent/orders/')
       .then(res => setOrders(res.data?.results ?? res.data ?? []))
       .catch(() => setError('Failed to load orders.'))
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => { fetchOrders(); }, [fetchOrders]);
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -81,7 +103,7 @@ const AgentOrders = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm min-w-[700px]">
+            <table className="w-full text-left text-sm min-w-[750px]">
               <thead className="bg-gray-50 dark:bg-zinc-800/50 text-gray-500 dark:text-zinc-400 font-medium uppercase text-xs border-b border-gray-100 dark:border-white/5">
                 <tr>
                   <th className="px-5 py-3.5">Order ID</th>
@@ -110,7 +132,7 @@ const AgentOrders = () => {
                       <StatusPill status={order.status} />
                     </td>
                     <td className="px-5 py-4">
-                      <TrackingCell order={order} />
+                      <TrackingCell order={order} onEdit={setSelectedOrderForTracking} />
                     </td>
                   </tr>
                 ))}
@@ -119,6 +141,17 @@ const AgentOrders = () => {
           </div>
         )}
       </div>
+
+      {selectedOrderForTracking && (
+        <UpdateTrackingModal
+          order={selectedOrderForTracking}
+          onClose={() => setSelectedOrderForTracking(null)}
+          onSuccess={() => {
+            fetchOrders();
+            setSelectedOrderForTracking(null);
+          }}
+        />
+      )}
     </div>
   );
 };
