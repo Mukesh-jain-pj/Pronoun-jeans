@@ -5,24 +5,29 @@ import { Lock, Mail, ArrowRight, Loader2, AlertCircle, CheckCircle2, X, Building
 import api from '../api/axios';
 
 const Login = () => {
-  const [email, setEmail]       = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+  const [email, setEmail]             = useState('');
+  const [password, setPassword]       = useState('');
+  const [loading, setLoading]         = useState(false);
+  const [error, setError]             = useState('');
   const [showRequest, setShowRequest] = useState(false);
 
   const login    = useAuthStore((state) => state.login);
   const navigate = useNavigate();
   const location = useLocation();
-  const from     = location.state?.from?.pathname || '/';
+  const from     = location.state?.from?.pathname || null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const decoded = await login(email, password);
+      // Agent → agent dashboard; buyer → intended page or dashboard
+      if (decoded?.is_agent) {
+        navigate('/agent', { replace: true });
+      } else {
+        navigate(from || '/dashboard', { replace: true });
+      }
     } catch {
       setError('Invalid email or password. Please try again.');
     } finally {
@@ -87,17 +92,16 @@ const Login = () => {
         </div>
       </div>
 
-      {/* Request Access Modal */}
       {showRequest && <RequestAccessModal onClose={() => setShowRequest(false)} />}
     </div>
   );
 };
 
 const RequestAccessModal = ({ onClose }) => {
-  const [form, setForm]         = useState({ email: '', company_name: '', phone_number: '', gst_number: '' });
-  const [loading, setLoading]   = useState(false);
-  const [success, setSuccess]   = useState(false);
-  const [error, setError]       = useState('');
+  const [form, setForm]       = useState({ email: '', company_name: '', phone_number: '', gst_number: '' });
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError]     = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -116,7 +120,6 @@ const RequestAccessModal = ({ onClose }) => {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm">
       <div className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 shadow-xl p-8">
-
         <div className="flex items-center justify-between mb-6">
           <div>
             <h3 className="text-gray-900 dark:text-zinc-100 text-lg font-bold">Request Partner Access</h3>
@@ -143,19 +146,10 @@ const RequestAccessModal = ({ onClose }) => {
                 <AlertCircle className="w-4 h-4 shrink-0" />{error}
               </div>
             )}
-
-            <ModalInput icon={Mail} label="Business Email *" type="email" placeholder="you@company.com"
-              value={form.email} onChange={v => setForm(p => ({ ...p, email: v }))} />
-
-            <ModalInput icon={Building} label="Company Name *" placeholder="Your Company Pvt. Ltd."
-              value={form.company_name} onChange={v => setForm(p => ({ ...p, company_name: v }))} />
-
-            <ModalInput icon={Phone} label="Phone Number *" placeholder="+91 98765 43210"
-              value={form.phone_number} onChange={v => setForm(p => ({ ...p, phone_number: v }))} />
-
-            <ModalInput icon={FileText} label="GST Number (optional)" placeholder="22AAAAA0000A1Z5"
-              value={form.gst_number} onChange={v => setForm(p => ({ ...p, gst_number: v }))} />
-
+            <ModalInput icon={Mail}      label="Business Email *"      type="email" placeholder="you@company.com"       value={form.email}        onChange={v => setForm(p => ({ ...p, email: v }))} />
+            <ModalInput icon={Building}  label="Company Name *"                     placeholder="Your Company Pvt. Ltd." value={form.company_name} onChange={v => setForm(p => ({ ...p, company_name: v }))} />
+            <ModalInput icon={Phone}     label="Phone Number *"                     placeholder="+91 98765 43210"        value={form.phone_number} onChange={v => setForm(p => ({ ...p, phone_number: v }))} />
+            <ModalInput icon={FileText}  label="GST Number (optional)"              placeholder="22AAAAA0000A1Z5"        value={form.gst_number}   onChange={v => setForm(p => ({ ...p, gst_number: v }))} />
             <button type="submit" disabled={loading}
               className="w-full flex items-center justify-center gap-2 bg-accent hover:bg-red-700 disabled:opacity-50 text-white font-bold px-6 py-3 rounded-xl transition-colors text-sm mt-2">
               {loading ? <><Loader2 className="animate-spin w-4 h-4" /> Submitting…</> : 'Submit Request'}
