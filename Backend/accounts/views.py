@@ -1,5 +1,5 @@
 from rest_framework import generics, status
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
@@ -7,12 +7,27 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from .models import CustomUser, Address
 from .serializers import (
     B2BTokenObtainPairSerializer, UserSerializer,
-    RegisterSerializer, AddressSerializer
+    RegisterSerializer, AddressSerializer, AgentBuyerSerializer,
 )
+
+
+
+class IsAgent(BasePermission):
+    """Allows access only to authenticated users with is_agent=True."""
+    message = 'Agent access required.'
+
+    def has_permission(self, request, view):
+        return bool(
+            request.user and
+            request.user.is_authenticated and
+            request.user.is_agent
+        )
+
 
 
 class B2BTokenObtainPairView(TokenObtainPairView):
     serializer_class = B2BTokenObtainPairSerializer
+
 
 
 class RegisterView(generics.CreateAPIView):
@@ -33,13 +48,13 @@ class RequestAccessView(APIView):
         if not email or not company_name or not phone_number:
             return Response(
                 {'error': 'Email, company name, and phone number are required.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         if CustomUser.objects.filter(email=email).exists():
             return Response(
                 {'error': 'An account with this email already exists.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         user = CustomUser(
@@ -55,9 +70,11 @@ class RequestAccessView(APIView):
 
         return Response(
             {'message': 'Access request submitted. Our team will contact you shortly.'},
-            status=status.HTTP_201_CREATED
+            status=status.HTTP_201_CREATED,
         )
 
+
+# ── Buyer Profile ─────────────────────────────────────────────────────────────
 
 class ProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
@@ -66,6 +83,8 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
+
+# ── Addresses ─────────────────────────────────────────────────────────────────
 
 class AddressListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -86,3 +105,25 @@ class AddressDetailView(generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
         return Address.objects.filter(user=self.request.user)
+
+
+
+class AgentBuyersListView(generics.ListAPIView):
+    """Returns all buyers assigned to the currently logged-in agent."""
+    permission_classes = [IsAgent]
+    serializer_class   = AgentBuyerSerializer
+
+    def get_queryset(self):
+        return CustomUser.objects.filter(
+            assigned_agent=self.request.user,
+            is_verified_b2b=True,
+        ).order_by('-date_joined')
+
+
+class AgentBuyerDetailView(generics.RetrieveAPIView):
+    """Returns details of a single buyer assigned to the agent."""
+    permission_classes = [IsAgent]
+    serializer_class   = AgentBuyerSerializer
+
+    def get_queryset(self):
+        return CustomUser.objects.filter(assigned_agent=self.request.user)
