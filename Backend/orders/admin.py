@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Cart, CartItem, Order, OrderItem
+from django.utils import timezone
+from .models import Cart, CartItem, Order, OrderItem, Commission
 
 
 class CartItemInline(admin.TabularInline):
@@ -28,3 +29,23 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields   = ['user__email']
     readonly_fields = ['total_amount', 'created_at', 'updated_at']
     inlines         = [OrderItemInline]
+
+
+@admin.action(description='Mark selected commissions as Paid')
+def mark_as_paid(modeladmin, request, queryset):
+    queryset.update(status=Commission.Status.PAID, paid_at=timezone.now())
+
+
+@admin.register(Commission)
+class CommissionAdmin(admin.ModelAdmin):
+    list_display   = ['id', 'agent', 'order', 'buyer', 'amount', 'commission_percentage', 'status', 'created_at', 'paid_at']
+    list_filter    = ['status', 'agent']
+    search_fields  = ['agent__email', 'order__id', 'order__user__email']
+    readonly_fields = ['created_at', 'amount', 'commission_percentage']
+    actions        = [mark_as_paid]
+    ordering       = ['-created_at']
+
+    def buyer(self, obj):
+        return obj.order.user.email
+    buyer.short_description = 'Buyer'
+    buyer.admin_order_field = 'order__user__email'

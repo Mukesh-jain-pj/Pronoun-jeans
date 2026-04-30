@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, Order, OrderItem, Commission
 from products.models import ProductVariation
 from accounts.serializers import AddressSerializer
 
@@ -62,4 +62,25 @@ class OrderSerializer(serializers.ModelSerializer):
             'id', 'user', 'status', 'payment_method', 'payment_status',
             'total_amount', 'shipping_address', 'billing_address',
             'items', 'created_at',
+        ]
+
+
+class CommissionSerializer(serializers.ModelSerializer):
+    order_id      = serializers.IntegerField(source='order.id', read_only=True)
+    order_total   = serializers.DecimalField(source='order.total_amount', max_digits=10, decimal_places=2, read_only=True)
+    order_status  = serializers.CharField(source='order.status', read_only=True)
+    order_date    = serializers.DateTimeField(source='order.created_at', read_only=True)
+    buyer_email   = serializers.EmailField(source='order.user.email', read_only=True)
+    buyer_company = serializers.CharField(source='order.user.company_name', read_only=True)
+    agent_email   = serializers.EmailField(source='agent.email', read_only=True)
+
+    class Meta:
+        model  = Commission
+        fields = [
+            'id',
+            'agent_email',
+            'order_id', 'order_total', 'order_status', 'order_date',
+            'buyer_email', 'buyer_company',
+            'commission_percentage', 'amount',
+            'status', 'created_at', 'paid_at',
         ]

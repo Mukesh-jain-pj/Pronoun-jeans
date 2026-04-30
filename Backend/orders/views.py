@@ -1,14 +1,19 @@
+from decimal import Decimal
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
 from django.db import transaction
+from django.db.models import Sum
 
-from .models import Cart, CartItem, Order, OrderItem
+from .models import Cart, CartItem, Order, OrderItem, Commission
 from products.models import Product, ProductVariation
 from accounts.models import Address
-from .serializers import CartSerializer, OrderSerializer
+from accounts.views import IsAgent
+from .serializers import CartSerializer, OrderSerializer, CommissionSerializer
 
+
+# ── Cart ──────────────────────────────────────────────────────────────────────
 
 class CartDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -29,7 +34,7 @@ class CartItemUpdateView(APIView):
         if not product_id or not items:
             return Response(
                 {'error': 'product_id and items array are required for bulk add.'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         total_quantity = sum(int(item.get('quantity', 0)) for item in items if int(item.get('quantity', 0)) > 0)
@@ -45,7 +50,7 @@ class CartItemUpdateView(APIView):
         if total_quantity < product.moq:
             return Response(
                 {'error': f'Total quantity ({total_quantity}) must be >= MOQ ({product.moq}).'},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         cart, _ = Cart.objects.get_or_create(user=request.user)
@@ -86,6 +91,8 @@ class CartItemDetailView(APIView):
         return Response(CartSerializer(cart).data)
 
 
+# ── Checkout ──────────────────────────────────────────────────────────────────
+
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -98,7 +105,7 @@ class CheckoutView(APIView):
         if payment_method not in Order.PaymentMethod.values:
             return Response(
                 {'error': f"Invalid payment_method. Choose from: {Order.PaymentMethod.values}"},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         shipping_address = None
@@ -152,6 +159,8 @@ class CheckoutView(APIView):
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 
+# ── Order History ─────────────────────────────────────────────────────────────
+
 class OrderHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -160,3 +169,36 @@ class OrderHistoryView(APIView):
             user=request.user
         ).prefetch_related('items__variation__product').order_by('-created_at')
         return Response(OrderSerializer(orders, many=True).data)
+
+
+# ── Agent: Commission & Ledger ────────────────────────────────────────────────
+
+class AgentCommissionsListView(generics.ListAPIView):
+    """Returns all commission records for the logged-in agent."""
+    permission_classes = [IsAgent]
+    serializer_class   = CommissionSerializer
+
+    def get_queryset(self):
+        return Commission.objects.filter(
+            agent=self.request.user
+        ).select_related(
+            'order', 'order__user', 'agent'
+        ).order_by('-created_at')
+
+
+class AgentLedgerSummaryView(APIView):
+    """Returns total earned, total paid, and balance due for the logged-in agent."""
+    permission_classes = [IsAgent]
+
+    def get(self, request):
+        qs = Commission.objects.filter(agent=request.user)
+
+        total_earned = qs.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        total_paid   = qs.filter(status=Commission.Status.PAID).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        balance_due  = qs.filter(status=Commission.Status.PENDING).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+        return Response({
+            'total_earned': str(total_earned),
+            'total_paid':   str(total_paid),
+            'balance_due':  str(balance_due),
+        })

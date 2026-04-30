@@ -3,9 +3,7 @@ from django.conf import settings
 
 
 class Cart(models.Model):
-    user = models.OneToOneField(
-        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cart'
-    )
+    user       = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='cart')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -65,3 +63,25 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.variation.sku} x{self.quantity} @ {self.price}"
+
+
+class Commission(models.Model):
+    class Status(models.TextChoices):
+        PENDING = 'Pending', 'Pending'
+        PAID    = 'Paid',    'Paid'
+
+    agent                 = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='commissions',
+        limit_choices_to={'is_agent': True},
+    )
+    order                 = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='commission')
+    commission_percentage = models.DecimalField(max_digits=5, decimal_places=2)
+    amount                = models.DecimalField(max_digits=10, decimal_places=2)
+    status                = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
+    created_at            = models.DateTimeField(auto_now_add=True)
+    paid_at               = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Commission — {self.agent.email} | Order#{self.order.pk} | ₹{self.amount} [{self.status}]"
