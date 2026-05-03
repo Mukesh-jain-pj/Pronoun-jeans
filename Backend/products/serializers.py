@@ -1,29 +1,38 @@
-# Backend/products/serializers.py
-
 from rest_framework import serializers
 from .models import Category, Product, ProductVariation
 
 
 class CategorySerializer(serializers.ModelSerializer):
     class Meta:
-        model = Category
-        fields = ["id", "name", "slug", "image"]
+        model  = Category
+        fields = ['id', 'name', 'slug', 'image']
 
 
 class ProductVariationSerializer(serializers.ModelSerializer):
+    margin_percentage = serializers.SerializerMethodField()
+
     class Meta:
-        model = ProductVariation
-        fields = ["id", "size", "color", "sku", "b2b_price", "stock_quantity"]
+        model  = ProductVariation
+        fields = ['id', 'size', 'color', 'sku', 'b2b_price', 'mrp', 'margin_percentage', 'stock_quantity']
+
+    def get_margin_percentage(self, obj):
+        if not obj.mrp or obj.mrp == 0:
+            return 0
+        try:
+            margin = ((obj.mrp - obj.b2b_price) / obj.mrp) * 100
+            return round(float(margin), 1)
+        except Exception:
+            return 0
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    variations = ProductVariationSerializer(many=True, read_only=True)
-    category_name = serializers.CharField(source="category.name", read_only=True)
+    variations    = ProductVariationSerializer(many=True, read_only=True)
+    category_name = serializers.CharField(source='category.name', read_only=True)
 
     class Meta:
-        model = Product
+        model  = Product
         fields = [
-            "id", "name", "slug", "description", "fabric_details",
-            "category", "category_name", "is_active", "moq",
-            "image", "created_at", "variations",
+            'id', 'name', 'slug', 'description', 'fabric_details',
+            'category', 'category_name', 'is_active', 'moq',
+            'image', 'created_at', 'variations',
         ]

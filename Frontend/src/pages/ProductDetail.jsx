@@ -32,6 +32,41 @@ const Toast = ({ onDone }) => {
   );
 };
 
+const PriceCell = ({ v, moq }) => {
+  const vSet    = (parseFloat(v.b2b_price) * moq).toFixed(2);
+  const hasMrp  = v.mrp && parseFloat(v.mrp) > 0;
+  const margin  = v.margin_percentage;
+
+  return (
+    <td className="px-4 py-3">
+      {/* Set price label */}
+      <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest leading-none">Set Price</p>
+
+      {/* B2B set price */}
+      <p className="text-gray-900 dark:text-zinc-100 font-black text-sm mt-0.5">₹{vSet}</p>
+
+      {/* Per piece row: b2b price + optional MRP strikethrough + margin badge */}
+      <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+        <span className="text-gray-400 dark:text-zinc-500 text-xs">
+          ₹{parseFloat(v.b2b_price).toFixed(2)}/pc
+        </span>
+
+        {hasMrp && (
+          <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">
+            MRP ₹{parseFloat(v.mrp).toFixed(2)}
+          </span>
+        )}
+
+        {hasMrp && margin > 0 && (
+          <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+            {margin}% margin
+          </span>
+        )}
+      </div>
+    </td>
+  );
+};
+
 const ProductDetail = () => {
   const { slug } = useParams();
   const navigate = useNavigate();
@@ -134,7 +169,21 @@ const ProductDetail = () => {
                 <div>
                   <p className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest">Set Price</p>
                   <p className="text-gray-900 dark:text-zinc-100 text-xl font-black">₹{setPrice}</p>
-                  <p className="text-gray-500 dark:text-zinc-400 text-xs">Price per piece : ₹{parseFloat(firstV.b2b_price).toFixed(2)}</p>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <p className="text-gray-500 dark:text-zinc-400 text-xs">
+                      ₹{parseFloat(firstV.b2b_price).toFixed(2)}/pc
+                    </p>
+                    {firstV.mrp && parseFloat(firstV.mrp) > 0 && (
+                      <p className="text-gray-400 dark:text-zinc-600 text-xs line-through">
+                        MRP ₹{parseFloat(firstV.mrp).toFixed(2)}
+                      </p>
+                    )}
+                    {firstV.margin_percentage > 0 && (
+                      <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                        {firstV.margin_percentage}% margin
+                      </span>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -171,7 +220,6 @@ const ProductDetail = () => {
                   <span className="text-xs text-gray-400 dark:text-zinc-500">Swipe to view full matrix</span>
                 </div>
 
-                {/* Scrollable table container */}
                 <div className="overflow-x-auto w-full">
                   <table className="w-full text-sm min-w-[540px]">
                     <thead>
@@ -183,28 +231,21 @@ const ProductDetail = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {product.variations.map((v, idx) => {
-                        const vSet = (parseFloat(v.b2b_price) * product.moq).toFixed(2);
-                        return (
-                          <tr key={v.id} className={`border-b border-gray-100 dark:border-white/5 transition-colors ${quantities[v.id] > 0 ? 'bg-red-50/50 dark:bg-accent/5' : idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.02]' : 'bg-white dark:bg-transparent'}`}>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
-                              <span className="text-gray-400 dark:text-zinc-600 mx-1">/</span>
-                              <span className="text-accent text-xs font-medium">{v.color}</span>
-                            </td>
-                            <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
-                            <td className="px-4 py-3">
-                              <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest leading-none">Set Price</p>
-                              <p className="text-gray-900 dark:text-zinc-100 font-black text-sm mt-0.5">₹{vSet}</p>
-                              <p className="text-gray-400 dark:text-zinc-500 text-xs">₹{parseFloat(v.b2b_price).toFixed(2)}/pc</p>
-                            </td>
-                            <td className="px-4 py-3">
-                              <input type="number" min="0" value={quantities[v.id] || ''} onChange={(e) => handleQtyChange(v.id, e.target.value)} placeholder="0"
-                                className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors" />
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {product.variations.map((v, idx) => (
+                        <tr key={v.id} className={`border-b border-gray-100 dark:border-white/5 transition-colors ${quantities[v.id] > 0 ? 'bg-red-50/50 dark:bg-accent/5' : idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.02]' : 'bg-white dark:bg-transparent'}`}>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
+                            <span className="text-gray-400 dark:text-zinc-600 mx-1">/</span>
+                            <span className="text-accent text-xs font-medium">{v.color}</span>
+                          </td>
+                          <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
+                          <PriceCell v={v} moq={product.moq} />
+                          <td className="px-4 py-3">
+                            <input type="number" min="0" value={quantities[v.id] || ''} onChange={(e) => handleQtyChange(v.id, e.target.value)} placeholder="0"
+                              className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors" />
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
