@@ -27,3 +27,6 @@ class ProductVariationAdmin(admin.ModelAdmin):
     list_display  = ['product', 'size', 'color', 'sku', 'b2b_price', 'stock_quantity']
     list_filter   = ['product']
     search_fields = ['sku', 'product__name']
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('product')

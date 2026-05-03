@@ -1,123 +1,288 @@
-"""
-Bigship Logistics API integration.
-Handles token caching and tracking timeline fetching.
-"""
-import logging
-import requests
-from django.core.cache import cache
-from django.conf import settings
+from decimal import Decimal
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, generics
+from rest_framework.permissions import IsAuthenticated
+from django.db import transaction
+from django.db.models import Sum
 
-logger = logging.getLogger(__name__)
-
-BIGSHIP_LOGIN_URL   = 'https://api.bigship.in/api/login/user'
-BIGSHIP_TRACK_URL   = 'https://api.bigship.in/api/tracking'
-TOKEN_CACHE_KEY     = 'bigship_token'
-TOKEN_CACHE_SECONDS = 39600  # 11 hours (token expires in 12)
-
-FALLBACK_TIMELINE = [
-    {
-        'timestamp': None,
-        'status':    'Processing',
-        'location':  '',
-        'message':   'Tracking details will update shortly. Please check back later.',
-    }
-]
+from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder
+from .tracking_service import get_bigship_tracking
+from products.models import Product, ProductVariation
+from accounts.models import Address
+from accounts.views import IsAgent
+from .serializers import (
+    CartSerializer, OrderSerializer, CommissionSerializer,
+    SampleOrderSerializer, OrderTrackingUpdateSerializer,
+)
 
 
-def get_bigship_token():
-    """
-    Return a valid Bigship bearer token.
-    Checks cache first; fetches a new one if missing or expired.
-    """
-    token = cache.get(TOKEN_CACHE_KEY)
-    if token:
-        return token
+# ── Cart ──────────────────────────────────────────────────────────────────────
 
-    try:
-        resp = requests.post(
-            BIGSHIP_LOGIN_URL,
-            json={
-                'user_name':  settings.BIGSHIP_USERNAME,
-                'password':   settings.BIGSHIP_PASSWORD,
-                'access_key': settings.BIGSHIP_ACCESS_KEY,
-            },
-            timeout=10,
-        )
-        resp.raise_for_status()
-        data  = resp.json()
-        token = data.get('data', {}).get('token')
+class CartDetailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-        if not token:
-            logger.error('Bigship login response missing token: %s', data)
-            return None
-
-        cache.set(TOKEN_CACHE_KEY, token, TOKEN_CACHE_SECONDS)
-        return token
-
-    except requests.RequestException as exc:
-        logger.error('Bigship login request failed: %s', exc)
-        return None
+    def get(self, request):
+        cart, _ = Cart.objects.get_or_create(user=request.user)
+        return Response(CartSerializer(cart).data)
 
 
-def get_bigship_tracking(tracking_number):
-    """
-    Fetch the tracking timeline for a given AWB number from Bigship.
-    Returns a standardised list of event dicts, or FALLBACK_TIMELINE on error.
-    """
-    if not tracking_number:
-        return FALLBACK_TIMELINE
+class CartItemUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    token = get_bigship_token()
-    if not token:
-        return FALLBACK_TIMELINE
+    @transaction.atomic
+    def post(self, request):
+        product_id = request.data.get('product_id')
+        items      = request.data.get('items', [])
 
-    try:
-        resp = requests.get(
-            BIGSHIP_TRACK_URL,
-            params={
-                'tracking_type': 'awb',
-                'tracking_id':   tracking_number,
-            },
-            headers={'Authorization': f'Bearer {token}'},
-            timeout=10,
-        )
-
-        # Token may have expired mid-session — bust cache and retry once
-        if resp.status_code == 401:
-            cache.delete(TOKEN_CACHE_KEY)
-            token = get_bigship_token()
-            if not token:
-                return FALLBACK_TIMELINE
-            resp = requests.get(
-                BIGSHIP_TRACK_URL,
-                params={'tracking_type': 'awb', 'tracking_id': tracking_number},
-                headers={'Authorization': f'Bearer {token}'},
-                timeout=10,
+        if not product_id or not items:
+            return Response(
+                {'error': 'product_id and items array are required for bulk add.'},
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
-        if resp.status_code == 404:
-            return FALLBACK_TIMELINE
+        total_quantity = sum(
+            int(item.get('quantity', 0))
+            for item in items
+            if int(item.get('quantity', 0)) > 0
+        )
 
-        resp.raise_for_status()
-        data           = resp.json()
-        scan_histories = data.get('data', {}).get('scan_histories', [])
+        if total_quantity == 0:
+            return Response({'error': 'No valid quantities provided.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        if not scan_histories:
-            return FALLBACK_TIMELINE
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({'error': 'Product not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        timeline = [
-            {
-                'timestamp': event.get('scan_datetime'),
-                'status':    event.get('scan_status')   or '',
-                'location':  event.get('scan_location') or '',
-                'message':   event.get('scan_remarks')  or '',
-            }
-            for event in scan_histories
-        ]
+        if total_quantity < product.moq:
+            return Response(
+                {'error': f'Total quantity ({total_quantity}) must be >= MOQ ({product.moq}).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
-        # Most recent event first
-        return list(reversed(timeline))
+        cart, _ = Cart.objects.get_or_create(user=request.user)
 
-    except requests.RequestException as exc:
-        logger.error('Bigship tracking request failed for %s: %s', tracking_number, exc)
-        return FALLBACK_TIMELINE
+        for item in items:
+            variation_id = item.get('variation_id')
+            quantity     = int(item.get('quantity', 0))
+            if quantity > 0:
+                try:
+                    variation = ProductVariation.objects.get(pk=variation_id, product=product)
+                    CartItem.objects.update_or_create(
+                        cart=cart, variation=variation, defaults={'quantity': quantity}
+                    )
+                except ProductVariation.DoesNotExist:
+                    continue
+
+        return Response(CartSerializer(cart).data, status=status.HTTP_200_OK)
+
+
+class CartItemDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def patch(self, request, pk):
+        try:
+            item = CartItem.objects.select_related('cart').get(pk=pk, cart__user=request.user)
+        except CartItem.DoesNotExist:
+            return Response({'error': 'Cart item not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        quantity = int(request.data.get('quantity', 1))
+        if quantity <= 0:
+            item.delete()
+        else:
+            item.quantity = quantity
+            item.save()
+
+        cart = Cart.objects.prefetch_related('items__variation').get(user=request.user)
+        return Response(CartSerializer(cart).data)
+
+
+# ── Checkout ──────────────────────────────────────────────────────────────────
+
+class CheckoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @transaction.atomic
+    def post(self, request):
+        shipping_address_id = request.data.get('shipping_address_id')
+        billing_address_id  = request.data.get('billing_address_id')
+        payment_method      = request.data.get('payment_method', Order.PaymentMethod.BANK_TRANSFER)
+
+        if payment_method not in Order.PaymentMethod.values:
+            return Response(
+                {'error': f"Invalid payment_method. Choose from: {Order.PaymentMethod.values}"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        shipping_address = None
+        billing_address  = None
+
+        if shipping_address_id:
+            try:
+                shipping_address = Address.objects.get(pk=shipping_address_id, user=request.user)
+            except Address.DoesNotExist:
+                return Response({'error': 'Shipping address not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if billing_address_id:
+            try:
+                billing_address = Address.objects.get(pk=billing_address_id, user=request.user)
+            except Address.DoesNotExist:
+                return Response({'error': 'Billing address not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            cart = Cart.objects.prefetch_related('items__variation__product').get(user=request.user)
+        except Cart.DoesNotExist:
+            return Response({'error': 'Cart not found.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = cart.items.all()
+        if not items.exists():
+            return Response({'error': 'Cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        total_amount = sum(item.quantity * item.variation.b2b_price for item in items)
+
+        order = Order.objects.create(
+            user             = request.user,
+            shipping_address = shipping_address,
+            billing_address  = billing_address,
+            payment_method   = payment_method,
+            payment_status   = Order.PaymentStatus.PENDING,
+            total_amount     = total_amount,
+            status           = Order.Status.PENDING,
+        )
+
+        OrderItem.objects.bulk_create([
+            OrderItem(
+                order     = order,
+                variation = item.variation,
+                quantity  = item.quantity,
+                price     = item.variation.b2b_price,
+            )
+            for item in items
+        ])
+
+        cart.items.all().delete()
+
+        return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
+# ── Order History ─────────────────────────────────────────────────────────────
+
+class OrderHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        orders = Order.objects.filter(
+            user=request.user
+        ).prefetch_related('items__variation__product').order_by('-created_at')
+        return Response(OrderSerializer(orders, many=True).data)
+
+
+# ── Agent: Commission & Ledger ────────────────────────────────────────────────
+
+class AgentCommissionsListView(generics.ListAPIView):
+    permission_classes = [IsAgent]
+    serializer_class   = CommissionSerializer
+
+    def get_queryset(self):
+        return Commission.objects.filter(
+            agent=self.request.user
+        ).select_related('order', 'order__user', 'agent').order_by('-created_at')
+
+
+class AgentLedgerSummaryView(APIView):
+    permission_classes = [IsAgent]
+
+    def get(self, request):
+        qs           = Commission.objects.filter(agent=request.user)
+        total_earned = qs.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        total_paid   = qs.filter(status=Commission.Status.PAID).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        balance_due  = qs.filter(status=Commission.Status.PENDING).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        return Response({
+            'total_earned': str(total_earned),
+            'total_paid':   str(total_paid),
+            'balance_due':  str(balance_due),
+        })
+
+
+# ── Agent: Sample Orders ──────────────────────────────────────────────────────
+
+class AgentSampleOrdersListView(generics.ListCreateAPIView):
+    permission_classes = [IsAgent]
+    serializer_class   = SampleOrderSerializer
+
+    def get_queryset(self):
+        return SampleOrder.objects.filter(
+            agent=self.request.user
+        ).select_related('buyer', 'agent').order_by('-date')
+
+    def perform_create(self, serializer):
+        serializer.save(agent=self.request.user)
+
+
+# ── Agent: Buyer Orders ───────────────────────────────────────────────────────
+
+class AgentOrdersListView(generics.ListAPIView):
+    permission_classes = [IsAgent]
+    serializer_class   = OrderSerializer
+
+    def get_queryset(self):
+        return Order.objects.filter(
+            user__assigned_agent=self.request.user
+        ).select_related(
+            'user', 'shipping_address', 'billing_address'
+        ).prefetch_related(
+            'items__variation__product'
+        ).order_by('-created_at')
+
+
+# ── Agent: Order Tracking Update ──────────────────────────────────────────────
+
+class AgentOrderTrackingUpdateView(generics.UpdateAPIView):
+    permission_classes = [IsAgent]
+    serializer_class   = OrderTrackingUpdateSerializer
+    http_method_names  = ['patch']
+
+    def get_queryset(self):
+        return Order.objects.filter(user__assigned_agent=self.request.user)
+
+
+# ── Tracking Timeline (Buyer + Agent) ────────────────────────────────────────
+
+class OrderTrackingTimelineView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        try:
+            order = Order.objects.select_related(
+                'user', 'user__assigned_agent'
+            ).get(pk=pk)
+        except Order.DoesNotExist:
+            return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        is_buyer = order.user == request.user
+        is_agent = (
+            order.user.assigned_agent is not None and
+            order.user.assigned_agent == request.user
+        )
+
+        if not (is_buyer or is_agent):
+            return Response(
+                {'error': 'You do not have permission to view this order\'s tracking.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not order.tracking_number:
+            return Response(
+                {'timeline': [{
+                    'timestamp': None,
+                    'status':    'Processing',
+                    'location':  '',
+                    'message':   'No tracking number has been assigned yet.',
+                }]},
+                status=status.HTTP_200_OK,
+            )
+
+        timeline = get_bigship_tracking(order.tracking_number)
+        return Response({'timeline': timeline}, status=status.HTTP_200_OK)

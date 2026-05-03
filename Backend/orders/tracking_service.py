@@ -25,14 +25,9 @@ FALLBACK_TIMELINE = [
 
 
 def get_bigship_token():
-    """
-    Return a valid Bigship bearer token.
-    Checks cache first; fetches a new one if missing or expired.
-    """
     token = cache.get(TOKEN_CACHE_KEY)
     if token:
         return token
-
     try:
         resp = requests.post(
             BIGSHIP_LOGIN_URL,
@@ -46,43 +41,29 @@ def get_bigship_token():
         resp.raise_for_status()
         data  = resp.json()
         token = data.get('data', {}).get('token')
-
         if not token:
             logger.error('Bigship login response missing token: %s', data)
             return None
-
         cache.set(TOKEN_CACHE_KEY, token, TOKEN_CACHE_SECONDS)
         return token
-
     except requests.RequestException as exc:
         logger.error('Bigship login request failed: %s', exc)
         return None
 
 
 def get_bigship_tracking(tracking_number):
-    """
-    Fetch the tracking timeline for a given AWB number from Bigship.
-    Returns a standardised list of event dicts, or FALLBACK_TIMELINE on error.
-    """
     if not tracking_number:
         return FALLBACK_TIMELINE
-
     token = get_bigship_token()
     if not token:
         return FALLBACK_TIMELINE
-
     try:
         resp = requests.get(
             BIGSHIP_TRACK_URL,
-            params={
-                'tracking_type': 'awb',
-                'tracking_id':   tracking_number,
-            },
+            params={'tracking_type': 'awb', 'tracking_id': tracking_number},
             headers={'Authorization': f'Bearer {token}'},
             timeout=10,
         )
-
-        # Token may have expired mid-session — bust cache and retry once
         if resp.status_code == 401:
             cache.delete(TOKEN_CACHE_KEY)
             token = get_bigship_token()
@@ -94,17 +75,13 @@ def get_bigship_tracking(tracking_number):
                 headers={'Authorization': f'Bearer {token}'},
                 timeout=10,
             )
-
         if resp.status_code == 404:
             return FALLBACK_TIMELINE
-
         resp.raise_for_status()
         data           = resp.json()
         scan_histories = data.get('data', {}).get('scan_histories', [])
-
         if not scan_histories:
             return FALLBACK_TIMELINE
-
         timeline = [
             {
                 'timestamp': event.get('scan_datetime'),
@@ -114,10 +91,7 @@ def get_bigship_tracking(tracking_number):
             }
             for event in scan_histories
         ]
-
-        # Most recent event first
         return list(reversed(timeline))
-
     except requests.RequestException as exc:
         logger.error('Bigship tracking request failed for %s: %s', tracking_number, exc)
         return FALLBACK_TIMELINE

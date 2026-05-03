@@ -41,9 +41,6 @@ class ProductVariation(models.Model):
         verbose_name    = "Product Variation"
 
     def __str__(self):
-        # Use product_id (always available) as fallback to avoid an
-        # extra DB query when product is not prefetched — prevents
-        # Django Admin worker crash on Order detail page.
         try:
             product_name = self.product.name
         except Exception:
