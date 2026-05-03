@@ -41,8 +41,20 @@ class ProductVariation(models.Model):
         verbose_name    = "Product Variation"
 
     def __str__(self):
-        try:
-            product_name = self.product.name
-        except Exception:
-            product_name = f"Product #{self.product_id}"
-        return f"{product_name} | {self.size} | {self.color} ({self.sku})"
+        # Check if product is already in the instance cache (prefetched).
+        # If not, use only the FK integer — NEVER trigger a DB query here.
+        product_cache = self.__dict__.get('_state') and self.__dict__
+        cached_product = self.__dict__.get('product_cache') or \
+                         getattr(self, '_product_cache', None)
+
+        # Django stores prefetched related objects under the field name
+        # in __dict__ when select_related is used.
+        product_name = None
+        if 'product' in self.__dict__:
+            # Already loaded via select_related — safe to access
+            product_name = self.__dict__['product'].name
+
+        if product_name is None:
+            product_name = f"SKU {self.sku}"
+
+        return f"{product_name} | {self.size} | {self.color}"
