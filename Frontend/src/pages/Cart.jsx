@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, PackageCheck, Loader, AlertCircle, CheckCircle2,
   ArrowRight, Tag, ReceiptText, Plus, Minus, Trash2,
-  Truck, CreditCard, Building, ShieldCheck, Landmark, Clock,
+  Truck, CreditCard, Building, ShieldCheck, Landmark, Clock, X,
 } from 'lucide-react';
 import api from '../api/axios';
+
+// ── Toast ──────────────────────────────────────────────────────────────────
 
 const Toast = ({ message, type = 'success', onDone }) => {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, [onDone]);
@@ -38,6 +40,8 @@ const EmptyCart = ({ navigate }) => (
     </button>
   </div>
 );
+
+// ── Qty Control ───────────────────────────────────────────────────────────
 
 const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange }) => (
   <div className="flex items-center rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 w-fit">
@@ -77,6 +81,8 @@ const useQtyUpdate = (showToast) => {
   return { saving, scheduleUpdate };
 };
 
+// ── Cart Row ──────────────────────────────────────────────────────────────
+
 const CartRow = ({ item, index, onQtyChange, saving }) => {
   const { id, variation, quantity } = item;
   const price    = parseFloat(variation?.b2b_price ?? 0);
@@ -113,11 +119,15 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
   );
 };
 
+// ── Payment options ───────────────────────────────────────────────────────
+
 const PAYMENT_OPTIONS = [
   { value: 'razorpay',      label: 'Razorpay',             subtitle: 'Pay now via UPI, Card or NetBanking', icon: CreditCard },
   { value: 'net_30',        label: 'Net 30 Terms',         subtitle: 'Invoice due within 30 days',          icon: Clock      },
   { value: 'bank_transfer', label: 'Direct Bank Transfer', subtitle: 'NEFT / RTGS / IMPS to our account',   icon: Landmark   },
 ];
+
+// ── Address card ──────────────────────────────────────────────────────────
 
 const AddressCard = ({ addr, selected, onSelect, type }) => {
   const Icon = type === 'shipping' ? Truck : Building;
@@ -140,9 +150,76 @@ const AddressCard = ({ addr, selected, onSelect, type }) => {
   );
 };
 
-const CheckoutPanel = ({ items, addresses, shippingId, billingId, paymentMethod, onShippingSelect, onBillingSelect, onPaymentSelect, onCheckout, checking }) => {
-  const grandTotal = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0).toFixed(2);
-  const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
+// ── Coupon Row ────────────────────────────────────────────────────────────
+
+const CouponRow = ({ onApply, applied, onRemove }) => {
+  const [code, setCode]         = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
+
+  const handleApply = async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    setError('');
+    try {
+      const res = await api.post('orders/cart/apply-coupon/', { coupon_code: code.trim() });
+      onApply(res.data);
+      setCode('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Invalid coupon code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (applied) {
+    return (
+      <div className="flex items-center justify-between bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-green-600 dark:text-green-400" />
+          <span className="text-green-700 dark:text-green-400 text-sm font-bold">{applied.coupon_code} applied</span>
+          <span className="text-green-600 dark:text-green-400 text-xs">— you save ₹{parseFloat(applied.discount_amount).toFixed(2)}</span>
+        </div>
+        <button onClick={onRemove} className="text-green-600 dark:text-green-400 hover:text-red-500 transition-colors">
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex gap-2">
+        <div className="relative flex-1">
+          <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
+          <input
+            type="text" value={code} onChange={e => setCode(e.target.value.toUpperCase())}
+            onKeyDown={e => e.key === 'Enter' && handleApply()}
+            placeholder="Enter coupon code"
+            className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-accent transition-colors"
+          />
+        </div>
+        <button onClick={handleApply} disabled={loading || !code.trim()}
+          className="px-4 py-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
+          {loading ? <Loader className="animate-spin w-4 h-4" /> : 'Apply'}
+        </button>
+      </div>
+      {error && <p className="text-red-500 dark:text-red-400 text-xs">{error}</p>}
+    </div>
+  );
+};
+
+// ── Checkout panel ────────────────────────────────────────────────────────
+
+const CheckoutPanel = ({
+  items, addresses, shippingId, billingId, paymentMethod,
+  onShippingSelect, onBillingSelect, onPaymentSelect,
+  onCheckout, checking, couponData, onCouponApply, onCouponRemove,
+}) => {
+  const subtotal    = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
+  const discount    = couponData ? parseFloat(couponData.discount_amount) : 0;
+  const grandTotal  = subtotal - discount;
+  const totalUnits  = items.reduce((s, i) => s + i.quantity, 0);
 
   return (
     <div className="flex flex-col xl:flex-row gap-8 items-start">
@@ -186,7 +263,7 @@ const CheckoutPanel = ({ items, addresses, shippingId, billingId, paymentMethod,
           </div>
           <div className="space-y-3">
             {PAYMENT_OPTIONS.map(opt => {
-              const Icon = opt.icon;
+              const Icon   = opt.icon;
               const active = paymentMethod === opt.value;
               return (
                 <label key={opt.value} onClick={() => onPaymentSelect(opt.value)}
@@ -213,6 +290,7 @@ const CheckoutPanel = ({ items, addresses, shippingId, billingId, paymentMethod,
             <ReceiptText className="w-5 h-5 text-accent" />
             <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Order Summary</h2>
           </div>
+
           <div className="space-y-3 text-sm">
             <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400">
               <span>SKU Lines</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{items.length}</span>
@@ -221,19 +299,37 @@ const CheckoutPanel = ({ items, addresses, shippingId, billingId, paymentMethod,
               <span>Total Units</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{totalUnits}</span>
             </div>
             <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5">
-              <span>Subtotal (excl. GST)</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{grandTotal}</span>
+              <span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span>
             </div>
+
+            {/* Discount line */}
+            {couponData && discount > 0 && (
+              <div className="flex items-center justify-between text-green-600 dark:text-green-400 font-semibold">
+                <span>Discount ({couponData.coupon_code})</span>
+                <span>−₹{discount.toFixed(2)}</span>
+              </div>
+            )}
           </div>
+
+          {/* Coupon input */}
+          <div className="border-t border-gray-100 dark:border-white/5 pt-4">
+            <p className="text-gray-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">Coupon Code</p>
+            <CouponRow onApply={onCouponApply} applied={couponData} onRemove={onCouponRemove} />
+          </div>
+
+          {/* Grand total */}
           <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
             <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
-            <span className="text-gray-900 dark:text-zinc-100 font-extrabold text-xl">₹{grandTotal}</span>
+            <span className="text-gray-900 dark:text-zinc-100 font-extrabold text-xl">₹{grandTotal.toFixed(2)}</span>
           </div>
+
           {paymentMethod && (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-white/5 rounded-xl px-3 py-2">
               <ShieldCheck className="w-3.5 h-3.5 text-accent" />
               {PAYMENT_OPTIONS.find(o => o.value === paymentMethod)?.label}
             </div>
           )}
+
           <button onClick={onCheckout} disabled={checking}
             className="w-full flex items-center justify-center gap-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3.5 rounded-xl transition-colors text-sm">
             {checking
@@ -249,17 +345,20 @@ const CheckoutPanel = ({ items, addresses, shippingId, billingId, paymentMethod,
   );
 };
 
+// ── Main Cart ─────────────────────────────────────────────────────────────
+
 const Cart = () => {
   const navigate = useNavigate();
-  const [items, setItems]                   = useState([]);
-  const [addresses, setAddresses]           = useState([]);
-  const [shippingId, setShippingId]         = useState(null);
-  const [billingId, setBillingId]           = useState(null);
-  const [paymentMethod, setPaymentMethod]   = useState('bank_transfer');
-  const [loading, setLoading]               = useState(true);
-  const [checking, setChecking]             = useState(false);
-  const [success, setSuccess]               = useState(false);
-  const [toast, setToast]                   = useState(null);
+  const [items, setItems]                 = useState([]);
+  const [addresses, setAddresses]         = useState([]);
+  const [shippingId, setShippingId]       = useState(null);
+  const [billingId, setBillingId]         = useState(null);
+  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
+  const [loading, setLoading]             = useState(true);
+  const [checking, setChecking]           = useState(false);
+  const [success, setSuccess]             = useState(false);
+  const [toast, setToast]                 = useState(null);
+  const [couponData, setCouponData]       = useState(null); // { coupon_code, discount_amount, grand_total }
 
   const showToast  = useCallback((message, type = 'success') => setToast({ message, type }), []);
   const clearToast = useCallback(() => setToast(null), []);
@@ -281,25 +380,45 @@ const Cart = () => {
   }, [showToast]);
 
   const handleQtyChange = useCallback((cartItemId, newQty) => {
-    if (newQty <= 0) { setItems(prev => prev.filter(i => i.id !== cartItemId)); scheduleUpdate(cartItemId, 0); return; }
+    if (newQty <= 0) {
+      setItems(prev => prev.filter(i => i.id !== cartItemId));
+      scheduleUpdate(cartItemId, 0);
+      // Clear coupon when cart changes
+      setCouponData(null);
+      return;
+    }
     setItems(prev => prev.map(i => i.id === cartItemId ? { ...i, quantity: newQty } : i));
     scheduleUpdate(cartItemId, newQty);
+    setCouponData(null); // re-validate coupon on qty change
   }, [scheduleUpdate]);
 
   const handleCheckout = async () => {
     if (checking) return;
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
+
     setChecking(true);
     try {
-      await api.post('orders/checkout/', { shipping_address_id: shippingId, billing_address_id: billingId, payment_method: paymentMethod });
-      setItems([]); setSuccess(true);
+      await api.post('orders/checkout/', {
+        shipping_address_id: shippingId,
+        billing_address_id:  billingId,
+        payment_method:      paymentMethod,
+        coupon_code:         couponData?.coupon_code || '',
+      });
+      setItems([]);
+      setCouponData(null);
+      setSuccess(true);
       showToast('Bulk order placed successfully!', 'success');
-      if (paymentMethod === 'razorpay') { setTimeout(() => navigate('/payment'), 1200); }
-      else { setTimeout(() => navigate('/dashboard'), 2400); }
+      if (paymentMethod === 'razorpay') {
+        setTimeout(() => navigate('/payment'), 1200);
+      } else {
+        setTimeout(() => navigate('/dashboard'), 2400);
+      }
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.detail || 'Checkout failed.', 'error');
-    } finally { setChecking(false); }
+    } finally {
+      setChecking(false);
+    }
   };
 
   return (
@@ -333,6 +452,7 @@ const Cart = () => {
 
         {!success && !loading && items.length > 0 && (
           <div className="space-y-8">
+            {/* Desktop table */}
             <div className="hidden md:block bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
               <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5">
                 <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Cart Items</h2>
@@ -359,6 +479,7 @@ const Cart = () => {
               </div>
             </div>
 
+            {/* Mobile cards */}
             <div className="md:hidden space-y-3">
               {items.map(item => (
                 <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
@@ -380,9 +501,21 @@ const Cart = () => {
               ))}
             </div>
 
-            <CheckoutPanel items={items} addresses={addresses} shippingId={shippingId} billingId={billingId}
-              paymentMethod={paymentMethod} onShippingSelect={setShippingId} onBillingSelect={setBillingId}
-              onPaymentSelect={setPaymentMethod} onCheckout={handleCheckout} checking={checking} />
+            <CheckoutPanel
+              items={items}
+              addresses={addresses}
+              shippingId={shippingId}
+              billingId={billingId}
+              paymentMethod={paymentMethod}
+              onShippingSelect={setShippingId}
+              onBillingSelect={setBillingId}
+              onPaymentSelect={setPaymentMethod}
+              onCheckout={handleCheckout}
+              checking={checking}
+              couponData={couponData}
+              onCouponApply={setCouponData}
+              onCouponRemove={() => setCouponData(null)}
+            />
           </div>
         )}
       </div>
