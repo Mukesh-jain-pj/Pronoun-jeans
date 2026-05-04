@@ -8,6 +8,19 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 
+// ── Color Swatch ──────────────────────────────────────────────────────────────
+
+const ColorSwatch = ({ hex, name }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span
+      className="w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block"
+      style={{ backgroundColor: hex || '#CCCCCC' }}
+      title={name}
+    />
+    <span>{name}</span>
+  </span>
+);
+
 // ── Toast ─────────────────────────────────────────────────────────────────────
 
 const Toast = ({ message, type = 'success', onDone }) => {
@@ -88,6 +101,9 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
   const { id, variation, quantity } = item;
   const price    = parseFloat(variation?.b2b_price ?? 0);
   const subtotal = (price * quantity).toFixed(2);
+  const colorName = variation?.color_name || variation?.color || '—';
+  const colorHex  = variation?.color_hex  || '#CCCCCC';
+
   return (
     <tr className={`border-b border-gray-100 dark:border-white/5 ${index % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.015]' : 'bg-white dark:bg-transparent'}`}>
       <td className="px-6 py-4">
@@ -102,7 +118,9 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
         </div>
       </td>
       <td className="px-6 py-4 text-gray-600 dark:text-zinc-300 text-sm">{variation?.size ?? '—'}</td>
-      <td className="px-6 py-4 text-gray-600 dark:text-zinc-300 text-sm font-mono">{variation?.color ?? '—'}</td>
+      <td className="px-6 py-4 text-gray-600 dark:text-zinc-300 text-sm">
+        <ColorSwatch hex={colorHex} name={colorName} />
+      </td>
       <td className="px-6 py-4 text-accent font-bold text-sm whitespace-nowrap">₹{price.toFixed(2)}</td>
       <td className="px-6 py-4">
         <QtyControl value={quantity} saving={!!saving[id]}
@@ -151,20 +169,20 @@ const AddressCard = ({ addr, selected, onSelect, type }) => {
   );
 };
 
-// ── Coupon Label Helper ───────────────────────────────────────────────────────
+// ── Coupon Helpers ────────────────────────────────────────────────────────────
 
 const couponLabel = (c) => {
   if (c.discount_type === 'percentage') return `${c.discount_value}% Off`;
   return `Flat ₹${parseFloat(c.discount_value).toFixed(0)} Off`;
 };
 
-// ── Available Offers Section ──────────────────────────────────────────────────
+// ── Available Offers ──────────────────────────────────────────────────────────
 
 const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove }) => {
-  const [expanded, setExpanded]   = useState(true);
-  const [loading, setLoading]     = useState(null); // code being applied
-  const [manualCode, setManualCode] = useState('');
-  const [manualError, setManualError] = useState('');
+  const [expanded, setExpanded]         = useState(true);
+  const [loading, setLoading]           = useState(null);
+  const [manualCode, setManualCode]     = useState('');
+  const [manualError, setManualError]   = useState('');
   const [manualLoading, setManualLoading] = useState(false);
 
   const handleApplyCode = async (code) => {
@@ -172,9 +190,7 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
     try {
       const res = await api.post('orders/cart/apply-coupon/', { coupon_code: code });
       onApply(res.data);
-    } catch (err) {
-      // silently fail — shouldn't happen since we only show Apply on unlocked coupons
-    } finally {
+    } catch { /* only shown on unlocked coupons */ } finally {
       setLoading(null);
     }
   };
@@ -196,31 +212,19 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
 
   return (
     <div className="border-t border-gray-100 dark:border-white/5 pt-4 space-y-3">
-
-      {/* Section header */}
-      <button
-        onClick={() => setExpanded(e => !e)}
-        className="flex items-center justify-between w-full"
-      >
+      <button onClick={() => setExpanded(e => !e)} className="flex items-center justify-between w-full">
         <div className="flex items-center gap-2">
           <Tag className="w-4 h-4 text-accent" />
           <p className="text-gray-900 dark:text-zinc-100 text-sm font-bold">Available Offers</p>
           {coupons.length > 0 && (
-            <span className="bg-accent/10 text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-              {coupons.length}
-            </span>
+            <span className="bg-accent/10 text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full">{coupons.length}</span>
           )}
         </div>
-        {expanded
-          ? <ChevronUp className="w-4 h-4 text-gray-400 dark:text-zinc-500" />
-          : <ChevronDown className="w-4 h-4 text-gray-400 dark:text-zinc-500" />
-        }
+        {expanded ? <ChevronUp className="w-4 h-4 text-gray-400 dark:text-zinc-500" /> : <ChevronDown className="w-4 h-4 text-gray-400 dark:text-zinc-500" />}
       </button>
 
       {expanded && (
         <div className="space-y-2">
-
-          {/* Applied coupon pill */}
           {appliedCoupon && (
             <div className="flex items-center justify-between bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl px-3 py-2.5">
               <div className="flex items-center gap-2">
@@ -234,22 +238,13 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
             </div>
           )}
 
-          {/* Coupon cards */}
           {coupons.map(c => {
             const minVal    = parseFloat(c.min_order_value);
             const unlocked  = cartTotal >= minVal;
             const shortfall = minVal - cartTotal;
             const isApplied = appliedCoupon?.coupon_code === c.code;
-
             return (
-              <div key={c.id}
-                className={`rounded-xl border p-3 transition-all ${
-                  isApplied
-                    ? 'border-green-200 dark:border-green-500/20 bg-green-50/50 dark:bg-green-500/5'
-                    : unlocked
-                      ? 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800'
-                      : 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-zinc-900/50'
-                }`}>
+              <div key={c.id} className={`rounded-xl border p-3 transition-all ${isApplied ? 'border-green-200 dark:border-green-500/20 bg-green-50/50 dark:bg-green-500/5' : unlocked ? 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800' : 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-zinc-900/50'}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2.5 flex-1 min-w-0">
                     <div className={`mt-0.5 shrink-0 ${unlocked ? 'text-accent' : 'text-gray-300 dark:text-zinc-600'}`}>
@@ -266,26 +261,15 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
                         </p>
                       )}
                       {unlocked && minVal > 0 && (
-                        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-0.5">
-                          Min order ₹{minVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-                        </p>
+                        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-0.5">Min order ₹{minVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
                       )}
                     </div>
                   </div>
-
-                  {/* Apply / Applied button */}
                   {isApplied ? (
                     <span className="text-green-600 dark:text-green-400 text-xs font-bold shrink-0 mt-0.5">Applied ✓</span>
                   ) : (
-                    <button
-                      onClick={() => unlocked && handleApplyCode(c.code)}
-                      disabled={!unlocked || !!appliedCoupon || loading === c.code}
-                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
-                        unlocked && !appliedCoupon
-                          ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white border border-accent/20'
-                          : 'text-gray-300 dark:text-zinc-600 cursor-not-allowed'
-                      }`}
-                    >
+                    <button onClick={() => unlocked && handleApplyCode(c.code)} disabled={!unlocked || !!appliedCoupon || loading === c.code}
+                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${unlocked && !appliedCoupon ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white border border-accent/20' : 'text-gray-300 dark:text-zinc-600 cursor-not-allowed'}`}>
                       {loading === c.code ? <Loader className="animate-spin w-3 h-3" /> : 'Apply'}
                     </button>
                   )}
@@ -294,15 +278,11 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
             );
           })}
 
-          {/* Manual entry */}
           <div className="pt-1 space-y-1.5">
             <div className="flex gap-2">
-              <input
-                type="text" value={manualCode} onChange={e => setManualCode(e.target.value.toUpperCase())}
-                onKeyDown={e => e.key === 'Enter' && handleManualApply()}
-                placeholder="Enter coupon code"
-                className="flex-1 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
-              />
+              <input type="text" value={manualCode} onChange={e => setManualCode(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleManualApply()} placeholder="Enter coupon code"
+                className="flex-1 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors" />
               <button onClick={handleManualApply} disabled={manualLoading || !manualCode.trim()}
                 className="px-4 py-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
                 {manualLoading ? <Loader className="animate-spin w-4 h-4" /> : 'Apply'}
@@ -321,8 +301,7 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
 const CheckoutPanel = ({
   items, addresses, shippingId, billingId, paymentMethod,
   onShippingSelect, onBillingSelect, onPaymentSelect,
-  onCheckout, checking, couponData, onCouponApply, onCouponRemove,
-  availableCoupons,
+  onCheckout, checking, couponData, onCouponApply, onCouponRemove, availableCoupons,
 }) => {
   const subtotal   = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
   const discount   = couponData ? parseFloat(couponData.discount_amount) : 0;
@@ -332,47 +311,24 @@ const CheckoutPanel = ({
   return (
     <div className="flex flex-col xl:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
-
         {/* Shipping */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Truck className="w-5 h-5 text-accent" />
-            <h2 className="text-gray-900 dark:text-zinc-100 font-bold">Shipping Address</h2>
-          </div>
-          {addresses.length === 0 ? (
-            <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved. <a href="/dashboard" className="text-accent underline">Add one in Dashboard.</a></p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="shipping" selected={shippingId === addr.id} onSelect={onShippingSelect} />)}
-            </div>
-          )}
+          <div className="flex items-center gap-2 mb-4"><Truck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Shipping Address</h2></div>
+          {addresses.length === 0 ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved. <a href="/dashboard" className="text-accent underline">Add one in Dashboard.</a></p>
+            : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="shipping" selected={shippingId === addr.id} onSelect={onShippingSelect} />)}</div>}
         </div>
-
         {/* Billing */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <Building className="w-5 h-5 text-accent" />
-            <h2 className="text-gray-900 dark:text-zinc-100 font-bold">Billing Address</h2>
-          </div>
-          {addresses.length === 0 ? (
-            <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="billing" selected={billingId === addr.id} onSelect={onBillingSelect} />)}
-            </div>
-          )}
+          <div className="flex items-center gap-2 mb-4"><Building className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Billing Address</h2></div>
+          {addresses.length === 0 ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved.</p>
+            : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="billing" selected={billingId === addr.id} onSelect={onBillingSelect} />)}</div>}
         </div>
-
         {/* Payment */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
-          <div className="flex items-center gap-2 mb-4">
-            <ShieldCheck className="w-5 h-5 text-accent" />
-            <h2 className="text-gray-900 dark:text-zinc-100 font-bold">Payment Method</h2>
-          </div>
+          <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Payment Method</h2></div>
           <div className="space-y-3">
             {PAYMENT_OPTIONS.map(opt => {
-              const Icon   = opt.icon;
-              const active = paymentMethod === opt.value;
+              const Icon = opt.icon; const active = paymentMethod === opt.value;
               return (
                 <label key={opt.value} onClick={() => onPaymentSelect(opt.value)}
                   className={`flex items-center gap-4 cursor-pointer rounded-xl border p-4 transition-all ${active ? 'border-accent/60 bg-accent/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-800 hover:border-gray-300 dark:hover:border-white/20'}`}>
@@ -398,56 +354,32 @@ const CheckoutPanel = ({
             <ReceiptText className="w-5 h-5 text-accent" />
             <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Order Summary</h2>
           </div>
-
           <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400">
-              <span>SKU Lines</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{items.length}</span>
-            </div>
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400">
-              <span>Total Units</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{totalUnits}</span>
-            </div>
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5">
-              <span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span>
-            </div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400"><span>SKU Lines</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{items.length}</span></div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400"><span>Total Units</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{totalUnits}</span></div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5"><span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span></div>
             {couponData && discount > 0 && (
               <div className="flex items-center justify-between text-green-600 dark:text-green-400 font-semibold">
-                <span>Discount ({couponData.coupon_code})</span>
-                <span>−₹{discount.toFixed(2)}</span>
+                <span>Discount ({couponData.coupon_code})</span><span>−₹{discount.toFixed(2)}</span>
               </div>
             )}
           </div>
-
-          {/* Available Offers */}
-          <AvailableOffers
-            coupons={availableCoupons}
-            cartTotal={subtotal}
-            appliedCoupon={couponData}
-            onApply={onCouponApply}
-            onRemove={onCouponRemove}
-          />
-
-          {/* Grand total */}
+          <AvailableOffers coupons={availableCoupons} cartTotal={subtotal} appliedCoupon={couponData} onApply={onCouponApply} onRemove={onCouponRemove} />
           <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
             <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
             <span className="text-gray-900 dark:text-zinc-100 font-extrabold text-xl">₹{grandTotal.toFixed(2)}</span>
           </div>
-
           {paymentMethod && (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-white/5 rounded-xl px-3 py-2">
               <ShieldCheck className="w-3.5 h-3.5 text-accent" />
               {PAYMENT_OPTIONS.find(o => o.value === paymentMethod)?.label}
             </div>
           )}
-
           <button onClick={onCheckout} disabled={checking}
             className="w-full flex items-center justify-center gap-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3.5 rounded-xl transition-colors text-sm">
-            {checking
-              ? <><Loader className="animate-spin w-4 h-4" /> Placing Order…</>
-              : <><PackageCheck className="w-4 h-4" /> Place Wholesale Order <ArrowRight className="w-4 h-4" /></>}
+            {checking ? <><Loader className="animate-spin w-4 h-4" /> Placing Order…</> : <><PackageCheck className="w-4 h-4" /> Place Wholesale Order <ArrowRight className="w-4 h-4" /></>}
           </button>
-          <p className="text-gray-400 dark:text-zinc-600 text-xs text-center leading-relaxed">
-            By submitting, you confirm this is a B2B bulk purchase order.
-          </p>
+          <p className="text-gray-400 dark:text-zinc-600 text-xs text-center leading-relaxed">By submitting, you confirm this is a B2B bulk purchase order.</p>
         </div>
       </div>
     </div>
@@ -458,17 +390,17 @@ const CheckoutPanel = ({
 
 const Cart = () => {
   const navigate = useNavigate();
-  const [items, setItems]                   = useState([]);
-  const [addresses, setAddresses]           = useState([]);
+  const [items, setItems]                       = useState([]);
+  const [addresses, setAddresses]               = useState([]);
   const [availableCoupons, setAvailableCoupons] = useState([]);
-  const [shippingId, setShippingId]         = useState(null);
-  const [billingId, setBillingId]           = useState(null);
-  const [paymentMethod, setPaymentMethod]   = useState('bank_transfer');
-  const [loading, setLoading]               = useState(true);
-  const [checking, setChecking]             = useState(false);
-  const [success, setSuccess]               = useState(false);
-  const [toast, setToast]                   = useState(null);
-  const [couponData, setCouponData]         = useState(null);
+  const [shippingId, setShippingId]             = useState(null);
+  const [billingId, setBillingId]               = useState(null);
+  const [paymentMethod, setPaymentMethod]       = useState('bank_transfer');
+  const [loading, setLoading]                   = useState(true);
+  const [checking, setChecking]                 = useState(false);
+  const [success, setSuccess]                   = useState(false);
+  const [toast, setToast]                       = useState(null);
+  const [couponData, setCouponData]             = useState(null);
 
   const showToast  = useCallback((message, type = 'success') => setToast({ message, type }), []);
   const clearToast = useCallback(() => setToast(null), []);
@@ -480,16 +412,14 @@ const Cart = () => {
       api.get('accounts/addresses/'),
       api.get('orders/coupons/active/'),
     ]).then(([cartRes, addrRes, couponRes]) => {
-      const cartItems = cartRes.data?.items ?? [];
-      const addrs     = addrRes.data ?? [];
-      const coupons   = couponRes.data?.results ?? couponRes.data ?? [];
-      setItems(cartItems);
-      setAddresses(addrs);
-      setAvailableCoupons(coupons);
-      const defShipping = addrs.find(a => a.is_default_shipping);
-      const defBilling  = addrs.find(a => a.is_default_billing);
-      if (defShipping) setShippingId(defShipping.id);
-      if (defBilling)  setBillingId(defBilling.id);
+      setItems(cartRes.data?.items ?? []);
+      setAddresses(addrRes.data ?? []);
+      setAvailableCoupons(couponRes.data?.results ?? couponRes.data ?? []);
+      const addrs      = addrRes.data ?? [];
+      const defShip    = addrs.find(a => a.is_default_shipping);
+      const defBill    = addrs.find(a => a.is_default_billing);
+      if (defShip) setShippingId(defShip.id);
+      if (defBill) setBillingId(defBill.id);
     }).catch(() => showToast('Failed to load cart.', 'error'))
       .finally(() => setLoading(false));
   }, [showToast]);
@@ -522,11 +452,7 @@ const Cart = () => {
       setCouponData(null);
       setSuccess(true);
       showToast('Bulk order placed successfully!', 'success');
-      if (paymentMethod === 'razorpay') {
-        setTimeout(() => navigate('/payment'), 1200);
-      } else {
-        setTimeout(() => navigate('/dashboard'), 2400);
-      }
+      setTimeout(() => navigate(paymentMethod === 'razorpay' ? '/payment' : '/dashboard'), 2400);
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.detail || 'Checkout failed.', 'error');
     } finally {
@@ -553,9 +479,7 @@ const Cart = () => {
               <PackageCheck className="w-9 h-9 text-green-600 dark:text-green-400" />
             </div>
             <p className="text-gray-900 dark:text-zinc-100 text-2xl font-bold">Order Placed!</p>
-            <p className="text-gray-500 dark:text-zinc-400 text-sm">
-              {paymentMethod === 'razorpay' ? 'Redirecting to payment…' : 'Redirecting to your dashboard…'}
-            </p>
+            <p className="text-gray-500 dark:text-zinc-400 text-sm">{paymentMethod === 'razorpay' ? 'Redirecting to payment…' : 'Redirecting to your dashboard…'}</p>
             <Loader className="animate-spin text-accent w-5 h-5 mt-1" />
           </div>
         )}
@@ -594,42 +518,43 @@ const Cart = () => {
 
             {/* Mobile cards */}
             <div className="md:hidden space-y-3">
-              {items.map(item => (
-                <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
-                  <div className="flex justify-between items-start mb-3">
-                    <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm">{item.variation?.product_name}</p>
-                    <button onClick={() => handleQtyChange(item.id, 0)} className="text-gray-400 hover:text-red-500">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+              {items.map(item => {
+                const colorName = item.variation?.color_name || item.variation?.color || '—';
+                const colorHex  = item.variation?.color_hex  || '#CCCCCC';
+                return (
+                  <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-1">
+                      <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm">{item.variation?.product_name}</p>
+                      <button onClick={() => handleQtyChange(item.id, 0)} className="text-gray-400 hover:text-red-500">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <p className="text-gray-400 dark:text-zinc-500 text-xs font-mono mb-1">{item.variation?.sku}</p>
+                    <div className="flex items-center gap-2 mb-3 text-xs text-gray-500 dark:text-zinc-400">
+                      <span>{item.variation?.size}</span>
+                      <span>/</span>
+                      <ColorSwatch hex={colorHex} name={colorName} />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <QtyControl value={item.quantity} saving={!!saving[item.id]}
+                        onDecrement={() => handleQtyChange(item.id, item.quantity - 1)}
+                        onIncrement={() => handleQtyChange(item.id, item.quantity + 1)}
+                        onDirectChange={(v) => handleQtyChange(item.id, v)} />
+                      <span className="text-gray-900 dark:text-zinc-100 font-bold">
+                        ₹{(parseFloat(item.variation?.b2b_price ?? 0) * item.quantity).toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-gray-400 dark:text-zinc-500 text-xs font-mono mb-3">{item.variation?.sku}</p>
-                  <div className="flex items-center justify-between">
-                    <QtyControl value={item.quantity} saving={!!saving[item.id]}
-                      onDecrement={() => handleQtyChange(item.id, item.quantity - 1)}
-                      onIncrement={() => handleQtyChange(item.id, item.quantity + 1)}
-                      onDirectChange={(v) => handleQtyChange(item.id, v)} />
-                    <span className="text-gray-900 dark:text-zinc-100 font-bold">
-                      ₹{(parseFloat(item.variation?.b2b_price ?? 0) * item.quantity).toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <CheckoutPanel
-              items={items}
-              addresses={addresses}
-              shippingId={shippingId}
-              billingId={billingId}
-              paymentMethod={paymentMethod}
-              onShippingSelect={setShippingId}
-              onBillingSelect={setBillingId}
-              onPaymentSelect={setPaymentMethod}
-              onCheckout={handleCheckout}
-              checking={checking}
-              couponData={couponData}
-              onCouponApply={setCouponData}
-              onCouponRemove={() => setCouponData(null)}
+              items={items} addresses={addresses}
+              shippingId={shippingId} billingId={billingId} paymentMethod={paymentMethod}
+              onShippingSelect={setShippingId} onBillingSelect={setBillingId} onPaymentSelect={setPaymentMethod}
+              onCheckout={handleCheckout} checking={checking}
+              couponData={couponData} onCouponApply={setCouponData} onCouponRemove={() => setCouponData(null)}
               availableCoupons={availableCoupons}
             />
           </div>

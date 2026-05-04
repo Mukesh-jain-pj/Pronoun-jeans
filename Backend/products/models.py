@@ -28,10 +28,39 @@ class Product(models.Model):
         return self.name
 
 
+class Color(models.Model):
+    """
+    Master color table. Admins manage names and hex codes here.
+    ProductVariation.color_palette points to this.
+    The old ProductVariation.color CharField is kept for backward
+    compatibility until all variations are migrated.
+    """
+    name     = models.CharField(max_length=100, unique=True)
+    hex_code = models.CharField(max_length=7, default='#CCCCCC',
+                                help_text='CSS hex color, e.g. #1A2B3C')
+
+    class Meta:
+        ordering = ['name']
+
+    def __str__(self):
+        return f"{self.name} ({self.hex_code})"
+
+
 class ProductVariation(models.Model):
     product        = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variations")
     size           = models.CharField(max_length=50)
+
+    # Legacy plain-text color — kept to avoid data loss during migration
     color          = models.CharField(max_length=100)
+
+    # New structured color reference — populated by migrate_colors command
+    color_palette  = models.ForeignKey(
+        Color,
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='variations',
+    )
+
     sku            = models.CharField(max_length=100, unique=True)
     b2b_price      = models.DecimalField(max_digits=10, decimal_places=2)
     mrp            = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
@@ -42,8 +71,6 @@ class ProductVariation(models.Model):
         verbose_name    = "Product Variation"
 
     def __str__(self):
-        # Only access self.product if already loaded via select_related.
-        # Never trigger a bare DB query from __str__.
         if 'product' in self.__dict__:
             product_name = self.__dict__['product'].name
         else:

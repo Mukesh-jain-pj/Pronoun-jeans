@@ -19,12 +19,9 @@ const Toast = ({ onDone }) => {
     const t = setTimeout(onDone, 3000);
     return () => clearTimeout(t);
   }, [onDone]);
-
   return (
-    <div
-      className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-white dark:bg-zinc-900 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-5 py-3.5 rounded-2xl shadow-lg text-sm font-semibold"
-      style={{ animation: 'slideUp 0.25s ease' }}
-    >
+    <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-white dark:bg-zinc-900 border border-green-200 dark:border-green-500/30 text-green-700 dark:text-green-400 px-5 py-3.5 rounded-2xl shadow-lg text-sm font-semibold"
+      style={{ animation: 'slideUp 0.25s ease' }}>
       <CheckCircle2 className="w-4 h-4 shrink-0" />
       Added to cart successfully!
       <style>{`@keyframes slideUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }`}</style>
@@ -32,31 +29,35 @@ const Toast = ({ onDone }) => {
   );
 };
 
-const PriceCell = ({ v, moq }) => {
-  const vSet    = (parseFloat(v.b2b_price) * moq).toFixed(2);
-  const hasMrp  = v.mrp && parseFloat(v.mrp) > 0;
-  const margin  = v.margin_percentage;
+// ── Shared color swatch component ─────────────────────────────────────────────
 
+const ColorSwatch = ({ hex, name, size = 'sm' }) => {
+  const dim = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className={`${dim} rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block`}
+        style={{ backgroundColor: hex || '#CCCCCC' }}
+        title={name}
+      />
+      <span>{name}</span>
+    </span>
+  );
+};
+
+const PriceCell = ({ v, moq }) => {
+  const vSet   = (parseFloat(v.b2b_price) * moq).toFixed(2);
+  const hasMrp = v.mrp && parseFloat(v.mrp) > 0;
+  const margin = v.margin_percentage;
   return (
     <td className="px-4 py-3">
-      {/* Set price label */}
       <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest leading-none">Set Price</p>
-
-      {/* B2B set price */}
       <p className="text-gray-900 dark:text-zinc-100 font-black text-sm mt-0.5">₹{vSet}</p>
-
-      {/* Per piece row: b2b price + optional MRP strikethrough + margin badge */}
       <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-        <span className="text-gray-400 dark:text-zinc-500 text-xs">
-          ₹{parseFloat(v.b2b_price).toFixed(2)}/pc
-        </span>
-
+        <span className="text-gray-400 dark:text-zinc-500 text-xs">₹{parseFloat(v.b2b_price).toFixed(2)}/pc</span>
         {hasMrp && (
-          <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">
-            MRP ₹{parseFloat(v.mrp).toFixed(2)}
-          </span>
+          <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">MRP ₹{parseFloat(v.mrp).toFixed(2)}</span>
         )}
-
         {hasMrp && margin > 0 && (
           <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
             {margin}% margin
@@ -165,18 +166,25 @@ const ProductDetail = () => {
                 <h1 className="text-gray-900 dark:text-zinc-100 text-lg font-bold leading-snug mt-0.5">{product.name}</h1>
               </div>
 
+              {/* Color swatches strip */}
+              {product.variations.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {[...new Map(product.variations.map(v => [v.color_name || v.color, v])).values()].map(v => (
+                    <span key={v.color_name || v.color} title={v.color_name || v.color}
+                      className="w-5 h-5 rounded-full border border-gray-300 dark:border-white/20 shrink-0"
+                      style={{ backgroundColor: v.color_hex || '#CCCCCC' }} />
+                  ))}
+                </div>
+              )}
+
               {isAuthenticated && setPrice && (
                 <div>
                   <p className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest">Set Price</p>
                   <p className="text-gray-900 dark:text-zinc-100 text-xl font-black">₹{setPrice}</p>
                   <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <p className="text-gray-500 dark:text-zinc-400 text-xs">
-                      ₹{parseFloat(firstV.b2b_price).toFixed(2)}/pc
-                    </p>
+                    <p className="text-gray-500 dark:text-zinc-400 text-xs">₹{parseFloat(firstV.b2b_price).toFixed(2)}/pc</p>
                     {firstV.mrp && parseFloat(firstV.mrp) > 0 && (
-                      <p className="text-gray-400 dark:text-zinc-600 text-xs line-through">
-                        MRP ₹{parseFloat(firstV.mrp).toFixed(2)}
-                      </p>
+                      <p className="text-gray-400 dark:text-zinc-600 text-xs line-through">MRP ₹{parseFloat(firstV.mrp).toFixed(2)}</p>
                     )}
                     {firstV.margin_percentage > 0 && (
                       <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
@@ -214,7 +222,6 @@ const ProductDetail = () => {
                   )}
                 </div>
 
-                {/* Mobile swipe hint */}
                 <div className="flex items-center justify-end gap-1.5 px-5 py-2 bg-gray-50 dark:bg-zinc-800/50 border-b border-gray-100 dark:border-white/5 md:hidden">
                   <MoveRight className="w-3 h-3 text-gray-400 dark:text-zinc-500" />
                   <span className="text-xs text-gray-400 dark:text-zinc-500">Swipe to view full matrix</span>
@@ -234,9 +241,16 @@ const ProductDetail = () => {
                       {product.variations.map((v, idx) => (
                         <tr key={v.id} className={`border-b border-gray-100 dark:border-white/5 transition-colors ${quantities[v.id] > 0 ? 'bg-red-50/50 dark:bg-accent/5' : idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.02]' : 'bg-white dark:bg-transparent'}`}>
                           <td className="px-4 py-3 whitespace-nowrap">
-                            <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
-                            <span className="text-gray-400 dark:text-zinc-600 mx-1">/</span>
-                            <span className="text-accent text-xs font-medium">{v.color}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
+                              <span className="text-gray-400 dark:text-zinc-600">/</span>
+                              {/* Color swatch + name */}
+                              <ColorSwatch
+                                hex={v.color_hex || '#CCCCCC'}
+                                name={v.color_name || v.color}
+                                size="sm"
+                              />
+                            </div>
                           </td>
                           <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
                           <PriceCell v={v} moq={product.moq} />
