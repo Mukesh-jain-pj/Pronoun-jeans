@@ -29,12 +29,6 @@ class Product(models.Model):
 
 
 class Color(models.Model):
-    """
-    Master color table. Admins manage names and hex codes here.
-    ProductVariation.color_palette points to this.
-    The old ProductVariation.color CharField is kept for backward
-    compatibility until all variations are migrated.
-    """
     name     = models.CharField(max_length=100, unique=True)
     hex_code = models.CharField(max_length=7, default='#CCCCCC',
                                 help_text='CSS hex color, e.g. #1A2B3C')
@@ -50,10 +44,11 @@ class ProductVariation(models.Model):
     product        = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variations")
     size           = models.CharField(max_length=50)
 
-    # Legacy plain-text color — kept to avoid data loss during migration
-    color          = models.CharField(max_length=100)
+    # Legacy plain-text color — now auto-synced from color_palette on save.
+    # blank=True, null=True so admins only need to pick the dropdown.
+    color          = models.CharField(max_length=100, blank=True, null=True)
 
-    # New structured color reference — populated by migrate_colors command
+    # Structured color FK — the single source of truth going forward.
     color_palette  = models.ForeignKey(
         Color,
         on_delete=models.SET_NULL,
@@ -67,12 +62,27 @@ class ProductVariation(models.Model):
     stock_quantity = models.PositiveIntegerField(default=0)
 
     class Meta:
+        # unique_together still enforces no duplicates when color is set
         unique_together = ("product", "size", "color")
         verbose_name    = "Product Variation"
+
+    def save(self, *args, **kwargs):
+        # Auto-sync the legacy color CharField from color_palette so
+        # the fallback serializer field always has a value and
+        # admins only need to fill in the dropdown.
+        if self.color_palette_id:
+            # Access name directly to avoid an extra query if already loaded
+            if 'color_palette' in self.__dict__ and self.__dict__['color_palette']:
+                self.color = self.__dict__['color_palette'].name
+            else:
+                # color_palette not prefetched — fetch name only
+                self.color = Color.objects.filter(pk=self.color_palette_id).values_list('name', flat=True).first()
+        super().save(*args, **kwargs)
 
     def __str__(self):
         if 'product' in self.__dict__:
             product_name = self.__dict__['product'].name
         else:
             product_name = f"SKU {self.sku}"
-        return f"{product_name} | {self.size} | {self.color}"
+        color_label = self.color or (self.__dict__.get('color_palette') and self.__dict__['color_palette'].name) or '—'
+        return f"{product_name} | {self.size} | {color_label}"
