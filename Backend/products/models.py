@@ -44,11 +44,10 @@ class ProductVariation(models.Model):
     product        = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variations")
     size           = models.CharField(max_length=50)
 
-    # Legacy plain-text color — now auto-synced from color_palette on save.
-    # blank=True, null=True so admins only need to pick the dropdown.
+    # Legacy plain-text color — auto-synced from color_palette on save
     color          = models.CharField(max_length=100, blank=True, null=True)
 
-    # Structured color FK — the single source of truth going forward.
+    # Structured color FK — single source of truth
     color_palette  = models.ForeignKey(
         Color,
         on_delete=models.SET_NULL,
@@ -61,22 +60,21 @@ class ProductVariation(models.Model):
     mrp            = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     stock_quantity = models.PositiveIntegerField(default=0)
 
+    # Per-variation image for color swatch switching on the product page
+    image          = models.ImageField(upload_to='variations/', null=True, blank=True)
+
     class Meta:
-        # unique_together still enforces no duplicates when color is set
         unique_together = ("product", "size", "color")
         verbose_name    = "Product Variation"
 
     def save(self, *args, **kwargs):
-        # Auto-sync the legacy color CharField from color_palette so
-        # the fallback serializer field always has a value and
-        # admins only need to fill in the dropdown.
         if self.color_palette_id:
-            # Access name directly to avoid an extra query if already loaded
             if 'color_palette' in self.__dict__ and self.__dict__['color_palette']:
                 self.color = self.__dict__['color_palette'].name
             else:
-                # color_palette not prefetched — fetch name only
-                self.color = Color.objects.filter(pk=self.color_palette_id).values_list('name', flat=True).first()
+                self.color = Color.objects.filter(
+                    pk=self.color_palette_id
+                ).values_list('name', flat=True).first()
         super().save(*args, **kwargs)
 
     def __str__(self):
@@ -84,5 +82,9 @@ class ProductVariation(models.Model):
             product_name = self.__dict__['product'].name
         else:
             product_name = f"SKU {self.sku}"
-        color_label = self.color or (self.__dict__.get('color_palette') and self.__dict__['color_palette'].name) or '—'
+        color_label = (
+            self.color
+            or (self.__dict__.get('color_palette') and self.__dict__['color_palette'].name)
+            or '—'
+        )
         return f"{product_name} | {self.size} | {color_label}"

@@ -1,6 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Loader, BadgeCheck, ShoppingCart, AlertCircle, CheckCircle2, Lock, MoveRight } from 'lucide-react';
+import {
+  ArrowLeft, Loader, BadgeCheck, ShoppingCart,
+  AlertCircle, CheckCircle2, Lock, MoveRight,
+} from 'lucide-react';
 import api from '../api/axios';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCartStore } from '../store/useCartStore';
@@ -13,6 +16,8 @@ const decodeHtml = (text) =>
     .replace(/&nbsp;/g, ' ')
     .replace(/&quot;/g, '"')
     .replace(/\\n/g, '\n');
+
+// ── Toast ─────────────────────────────────────────────────────────────────────
 
 const Toast = ({ onDone }) => {
   useEffect(() => {
@@ -29,7 +34,7 @@ const Toast = ({ onDone }) => {
   );
 };
 
-// ── Shared color swatch component ─────────────────────────────────────────────
+// ── Color Swatch ──────────────────────────────────────────────────────────────
 
 const ColorSwatch = ({ hex, name, size = 'sm' }) => {
   const dim = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
@@ -45,28 +50,52 @@ const ColorSwatch = ({ hex, name, size = 'sm' }) => {
   );
 };
 
+// ── Price Cell ────────────────────────────────────────────────────────────────
+
 const PriceCell = ({ v, moq }) => {
-  const vSet   = (parseFloat(v.b2b_price) * moq).toFixed(2);
   const hasMrp = v.mrp && parseFloat(v.mrp) > 0;
   const margin = v.margin_percentage;
   return (
     <td className="px-4 py-3">
-      <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest leading-none">Set Price</p>
-      <p className="text-gray-900 dark:text-zinc-100 font-black text-sm mt-0.5">₹{vSet}</p>
-      <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
-        <span className="text-gray-400 dark:text-zinc-500 text-xs">₹{parseFloat(v.b2b_price).toFixed(2)}/pc</span>
-        {hasMrp && (
-          <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">MRP ₹{parseFloat(v.mrp).toFixed(2)}</span>
-        )}
-        {hasMrp && margin > 0 && (
-          <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
-            {margin}% margin
+      {/* Per piece price */}
+      <p className="text-gray-400 dark:text-zinc-500 text-[10px] uppercase tracking-widest leading-none mb-0.5">
+        Per piece
+      </p>
+      <p className="text-gray-700 dark:text-zinc-300 font-semibold text-sm">
+        ₹{parseFloat(v.b2b_price).toFixed(2)}
+      </p>
+
+      {/* MRP strikethrough + margin */}
+      {hasMrp && (
+        <div className="flex items-center flex-wrap gap-1.5 mt-0.5">
+          <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">
+            MRP ₹{parseFloat(v.mrp).toFixed(2)}
           </span>
-        )}
-      </div>
+          {margin > 0 && (
+            <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap">
+              {margin}% margin
+            </span>
+          )}
+        </div>
+      )}
     </td>
   );
 };
+
+// ── Total Cell ────────────────────────────────────────────────────────────────
+
+const TotalCell = ({ v, qty }) => {
+  if (!qty || qty === 0) return <td className="px-4 py-3 text-gray-300 dark:text-zinc-700 text-sm">—</td>;
+  const total = (parseFloat(v.b2b_price) * qty).toFixed(2);
+  return (
+    <td className="px-4 py-3">
+      <p className="text-gray-900 dark:text-zinc-100 font-black text-sm">₹{total}</p>
+      <p className="text-gray-400 dark:text-zinc-500 text-[10px]">{qty} pcs</p>
+    </td>
+  );
+};
+
+// ── Main Component ────────────────────────────────────────────────────────────
 
 const ProductDetail = () => {
   const { slug } = useParams();
@@ -74,19 +103,44 @@ const ProductDetail = () => {
   const { isAuthenticated } = useAuthStore();
   const fetchCart = useCartStore((s) => s.fetchCart);
 
-  const [product, setProduct]       = useState(null);
-  const [loading, setLoading]       = useState(true);
-  const [quantities, setQuantities] = useState({});
-  const [error, setError]           = useState('');
-  const [showToast, setShowToast]   = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [product, setProduct]         = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [quantities, setQuantities]   = useState({});
+  const [error, setError]             = useState('');
+  const [showToast, setShowToast]     = useState(false);
+  const [submitting, setSubmitting]   = useState(false);
+  const [mainImage, setMainImage]     = useState(null);
+  const [activeColor, setActiveColor] = useState(null); // color_name of selected swatch
 
   useEffect(() => {
     api.get(`products/catalog/${slug}/`)
-      .then(res => setProduct(res.data))
+      .then(res => {
+        setProduct(res.data);
+        setMainImage(res.data.image);
+      })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [slug]);
+
+  // Unique colors for the swatch strip (deduplicated by color_name)
+  const uniqueColors = useMemo(() => {
+    if (!product) return [];
+    const seen = new Map();
+    product.variations.forEach(v => {
+      const name = v.color_name || v.color || '';
+      if (name && !seen.has(name)) seen.set(name, v);
+    });
+    return [...seen.values()];
+  }, [product]);
+
+  const handleSwatchClick = (colorName) => {
+    setActiveColor(colorName);
+    // Find first variation of this color that has its own image
+    const match = product.variations.find(
+      v => (v.color_name || v.color) === colorName && v.image
+    );
+    setMainImage(match ? match.image : product.image);
+  };
 
   const handleQtyChange = (variationId, value) => {
     const qty = Math.max(0, parseInt(value) || 0);
@@ -134,8 +188,7 @@ const ProductDetail = () => {
     </div>
   );
 
-  const firstV   = product.variations[0];
-  const setPrice = firstV ? (parseFloat(firstV.b2b_price) * product.moq).toFixed(2) : null;
+  const firstV = product.variations[0];
 
   return (
     <div className="bg-gray-50 dark:bg-zinc-950 min-h-screen">
@@ -147,12 +200,18 @@ const ProductDetail = () => {
 
         <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* Left — image + meta */}
+          {/* ── Left panel ─────────────────────────────────────────────── */}
           <div className="w-full lg:w-72 xl:w-80 shrink-0">
+
+            {/* Main image — switches on swatch click */}
             <div className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/5 aspect-square shadow-sm">
-              {product.image ? (
-                <img src={product.image} alt={product.name} className="w-full h-full object-cover"
-                  onError={(e) => { e.target.style.display = 'none'; }} />
+              {mainImage ? (
+                <img
+                  src={mainImage}
+                  alt={product.name}
+                  className="w-full h-full object-cover transition-opacity duration-200"
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
               ) : (
                 <div className="w-full h-full flex items-center justify-center">
                   <ShoppingCart className="w-16 h-16 text-gray-300 dark:text-zinc-700" />
@@ -166,31 +225,73 @@ const ProductDetail = () => {
                 <h1 className="text-gray-900 dark:text-zinc-100 text-lg font-bold leading-snug mt-0.5">{product.name}</h1>
               </div>
 
-              {/* Color swatches strip */}
-              {product.variations.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {[...new Map(product.variations.map(v => [v.color_name || v.color, v])).values()].map(v => (
-                    <span key={v.color_name || v.color} title={v.color_name || v.color}
-                      className="w-5 h-5 rounded-full border border-gray-300 dark:border-white/20 shrink-0"
-                      style={{ backgroundColor: v.color_hex || '#CCCCCC' }} />
-                  ))}
+              {/* Clickable color swatch strip */}
+              {uniqueColors.length > 0 && (
+                <div>
+                  <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest mb-2">
+                    {activeColor ? activeColor : 'All Colors'}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {uniqueColors.map(v => {
+                      const name    = v.color_name || v.color || '';
+                      const hex     = v.color_hex  || '#CCCCCC';
+                      const isActive = activeColor === name;
+                      return (
+                        <button
+                          key={name}
+                          onClick={() => handleSwatchClick(name)}
+                          title={name}
+                          className={`w-7 h-7 rounded-full border-2 transition-all ${
+                            isActive
+                              ? 'border-accent scale-110 shadow-md'
+                              : 'border-gray-200 dark:border-white/20 hover:border-gray-400 dark:hover:border-white/40'
+                          }`}
+                          style={{ backgroundColor: hex }}
+                        />
+                      );
+                    })}
+                    {activeColor && (
+                      <button
+                        onClick={() => { setActiveColor(null); setMainImage(product.image); }}
+                        className="text-xs text-gray-400 dark:text-zinc-500 hover:text-accent transition-colors self-center ml-1"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
 
-              {isAuthenticated && setPrice && (
-                <div>
-                  <p className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest">Set Price</p>
-                  <p className="text-gray-900 dark:text-zinc-100 text-xl font-black">₹{setPrice}</p>
-                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
-                    <p className="text-gray-500 dark:text-zinc-400 text-xs">₹{parseFloat(firstV.b2b_price).toFixed(2)}/pc</p>
-                    {firstV.mrp && parseFloat(firstV.mrp) > 0 && (
-                      <p className="text-gray-400 dark:text-zinc-600 text-xs line-through">MRP ₹{parseFloat(firstV.mrp).toFixed(2)}</p>
-                    )}
-                    {firstV.margin_percentage > 0 && (
+              {/* Pricing summary — only for authenticated users */}
+              {isAuthenticated && firstV && (
+                <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-white/5 rounded-xl p-3 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-gray-400 dark:text-zinc-500 text-xs">Per piece</span>
+                    <span className="text-gray-900 dark:text-zinc-100 font-bold text-sm">
+                      ₹{parseFloat(firstV.b2b_price).toFixed(2)}
+                    </span>
+                  </div>
+                  {firstV.mrp && parseFloat(firstV.mrp) > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 dark:text-zinc-500 text-xs">MRP</span>
+                      <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">
+                        ₹{parseFloat(firstV.mrp).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
+                  {firstV.margin_percentage > 0 && (
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-400 dark:text-zinc-500 text-xs">Your margin</span>
                       <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                         {firstV.margin_percentage}% margin
                       </span>
-                    )}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-t border-gray-100 dark:border-white/5 pt-1.5">
+                    <span className="text-gray-500 dark:text-zinc-400 text-xs font-semibold">Min. order total</span>
+                    <span className="text-accent font-black text-base">
+                      ₹{(parseFloat(firstV.b2b_price) * product.moq).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               )}
@@ -209,7 +310,7 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          {/* Right — bulk order table OR login gate */}
+          {/* ── Right panel ────────────────────────────────────────────── */}
           <div className="flex-1 min-w-0 w-full">
             {isAuthenticated ? (
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
@@ -228,54 +329,104 @@ const ProductDetail = () => {
                 </div>
 
                 <div className="overflow-x-auto w-full">
-                  <table className="w-full text-sm min-w-[540px]">
+                  <table className="w-full text-sm min-w-[580px]">
                     <thead>
                       <tr className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]">
                         <th className="text-left px-4 py-3">Size / Color</th>
                         <th className="text-left px-4 py-3">SKU</th>
-                        <th className="text-left px-4 py-3">Price</th>
+                        <th className="text-left px-4 py-3">Per Piece</th>
                         <th className="text-left px-4 py-3 w-24">QTY</th>
+                        <th className="text-left px-4 py-3">Line Total</th>
                       </tr>
                     </thead>
                     <tbody>
                       {product.variations.map((v, idx) => (
                         <tr key={v.id} className={`border-b border-gray-100 dark:border-white/5 transition-colors ${quantities[v.id] > 0 ? 'bg-red-50/50 dark:bg-accent/5' : idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.02]' : 'bg-white dark:bg-transparent'}`}>
+
+                          {/* Size / Color */}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
                               <span className="text-gray-400 dark:text-zinc-600">/</span>
-                              {/* Color swatch + name */}
-                              <ColorSwatch
-                                hex={v.color_hex || '#CCCCCC'}
-                                name={v.color_name || v.color}
-                                size="sm"
-                              />
+                              <ColorSwatch hex={v.color_hex || '#CCCCCC'} name={v.color_name || v.color} size="sm" />
                             </div>
                           </td>
+
+                          {/* SKU */}
                           <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
+
+                          {/* Per piece price + MRP */}
                           <PriceCell v={v} moq={product.moq} />
+
+                          {/* QTY input */}
                           <td className="px-4 py-3">
-                            <input type="number" min="0" value={quantities[v.id] || ''} onChange={(e) => handleQtyChange(v.id, e.target.value)} placeholder="0"
-                              className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors" />
+                            <input
+                              type="number" min="0"
+                              value={quantities[v.id] || ''}
+                              onChange={(e) => handleQtyChange(v.id, e.target.value)}
+                              placeholder="0"
+                              className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
+                            />
                           </td>
+
+                          {/* Line total */}
+                          <TotalCell v={v} qty={quantities[v.id] || 0} />
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                <div className="px-5 py-4 border-t border-gray-100 dark:border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                  <div>
-                    {totalSelected > 0 && !error && (
-                      <p className="text-gray-500 dark:text-zinc-400 text-sm">Order Total: <span className="text-gray-900 dark:text-zinc-100 font-bold">₹{totalOrderValue.toFixed(2)}</span></p>
-                    )}
-                    {error && <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold"><AlertCircle className="w-4 h-4 shrink-0" />{error}</div>}
+                {/* Footer — order summary */}
+                <div className="px-5 py-4 border-t border-gray-100 dark:border-white/5">
+                  {/* Running total breakdown */}
+                  {totalSelected > 0 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-xl">
+                      <div className="flex items-center gap-6 text-sm flex-wrap">
+                        <div>
+                          <p className="text-gray-400 dark:text-zinc-500 text-xs">Units selected</p>
+                          <p className="text-gray-900 dark:text-zinc-100 font-bold">{totalSelected}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 dark:text-zinc-500 text-xs">Order total</p>
+                          <p className="text-gray-900 dark:text-zinc-100 font-black text-lg">
+                            ₹{totalOrderValue.toFixed(2)}
+                          </p>
+                        </div>
+                        {firstV && (
+                          <div>
+                            <p className="text-gray-400 dark:text-zinc-500 text-xs">Avg. per piece</p>
+                            <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm">
+                              ₹{(totalOrderValue / totalSelected).toFixed(2)}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div>
+                      {error && (
+                        <div className="flex items-center gap-2 text-red-600 dark:text-red-400 text-sm font-semibold">
+                          <AlertCircle className="w-4 h-4 shrink-0" />{error}
+                        </div>
+                      )}
+                      {!error && totalSelected === 0 && (
+                        <p className="text-gray-400 dark:text-zinc-500 text-xs">
+                          Enter quantities above. Min. order: {product.moq} units.
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={handleBulkAdd}
+                      disabled={submitting}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-xl transition-colors text-sm uppercase tracking-wide whitespace-nowrap"
+                    >
+                      {submitting ? <Loader className="animate-spin w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
+                      {submitting ? 'Adding...' : 'Add to Cart'}
+                    </button>
                   </div>
-                  <button onClick={handleBulkAdd} disabled={submitting}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-xl transition-colors text-sm uppercase tracking-wide whitespace-nowrap">
-                    {submitting ? <Loader className="animate-spin w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
-                    {submitting ? 'Adding...' : 'Confirm Bulk Order'}
-                  </button>
                 </div>
               </div>
             ) : (
@@ -287,8 +438,10 @@ const ProductDetail = () => {
                 <p className="text-gray-500 dark:text-zinc-400 text-sm max-w-sm mb-6 leading-relaxed">
                   Sign in to your partner account to view B2B pricing, MOQ details, and place bulk orders.
                 </p>
-                <button onClick={() => navigate('/login', { state: { from: { pathname: `/product/${slug}` } } })}
-                  className="bg-accent hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-colors text-sm">
+                <button
+                  onClick={() => navigate('/login', { state: { from: { pathname: `/product/${slug}` } } })}
+                  className="bg-accent hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-colors text-sm"
+                >
                   Sign In to Order
                 </button>
                 <p className="text-gray-400 dark:text-zinc-600 text-xs mt-4">Not a partner yet? Contact your account manager.</p>

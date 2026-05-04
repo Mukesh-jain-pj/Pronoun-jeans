@@ -17,7 +17,8 @@ class ProductVariationSerializer(serializers.ModelSerializer):
         model  = ProductVariation
         fields = [
             'id', 'size', 'color', 'color_name', 'color_hex',
-            'sku', 'b2b_price', 'mrp', 'margin_percentage', 'stock_quantity',
+            'sku', 'b2b_price', 'mrp', 'margin_percentage',
+            'stock_quantity', 'image',
         ]
 
     def get_margin_percentage(self, obj):
@@ -30,13 +31,11 @@ class ProductVariationSerializer(serializers.ModelSerializer):
             return 0
 
     def get_color_name(self, obj):
-        """Return the structured color name if linked, else fall back to the plain string."""
         if obj.color_palette_id and 'color_palette' in obj.__dict__:
             return obj.__dict__['color_palette'].name
         return obj.color or ''
 
     def get_color_hex(self, obj):
-        """Return the hex code if linked, else a neutral default."""
         if obj.color_palette_id and 'color_palette' in obj.__dict__:
             return obj.__dict__['color_palette'].hex_code
         return '#CCCCCC'
