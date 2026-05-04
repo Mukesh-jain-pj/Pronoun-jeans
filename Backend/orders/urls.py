@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     CartDetailView, CartItemUpdateView, CartItemDetailView,
     CheckoutView, OrderHistoryView,
-    ApplyCouponView,
+    ApplyCouponView, ActiveCouponsListView,
     AgentCommissionsListView, AgentLedgerSummaryView,
     AgentSampleOrdersListView, AgentOrdersListView,
     AgentOrderTrackingUpdateView, OrderTrackingTimelineView,
@@ -14,8 +14,9 @@ urlpatterns = [
     path('cart/update/',         CartItemUpdateView.as_view(),  name='cart-item-update'),
     path('cart/items/<int:pk>/', CartItemDetailView.as_view(),  name='cart-item-detail'),
 
-    # Coupon
-    path('cart/apply-coupon/', ApplyCouponView.as_view(), name='apply-coupon'),
+    # Coupons
+    path('cart/apply-coupon/', ApplyCouponView.as_view(),      name='apply-coupon'),
+    path('coupons/active/',    ActiveCouponsListView.as_view(), name='active-coupons'),
 
     # Checkout & history
     path('checkout/', CheckoutView.as_view(),    name='checkout'),

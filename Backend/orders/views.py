@@ -14,7 +14,7 @@ from accounts.models import Address
 from accounts.views import IsAgent
 from .serializers import (
     CartSerializer, OrderSerializer, CommissionSerializer,
-    SampleOrderSerializer, OrderTrackingUpdateSerializer,
+    SampleOrderSerializer, OrderTrackingUpdateSerializer, CouponSerializer,
 )
 
 
@@ -100,14 +100,23 @@ class CartItemDetailView(APIView):
         return Response(CartSerializer(cart).data)
 
 
-# ── Coupon ────────────────────────────────────────────────────────────────────
+# ── Coupons ───────────────────────────────────────────────────────────────────
+
+class ActiveCouponsListView(generics.ListAPIView):
+    """Returns all currently active and date-valid coupons for the cart offers UI."""
+    permission_classes = [IsAuthenticated]
+    serializer_class   = CouponSerializer
+
+    def get_queryset(self):
+        now = timezone.now()
+        return Coupon.objects.filter(
+            is_active=True,
+            valid_from__lte=now,
+            valid_to__gte=now,
+        ).order_by('min_order_value')
+
 
 class ApplyCouponView(APIView):
-    """
-    POST { "coupon_code": "SAVE10" }
-    Validates the coupon against the user's current cart and returns
-    discount_amount and grand_total if valid.
-    """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
@@ -116,13 +125,11 @@ class ApplyCouponView(APIView):
         if not coupon_code:
             return Response({'error': 'Please enter a coupon code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Fetch coupon
         try:
             coupon = Coupon.objects.get(code=coupon_code)
         except Coupon.DoesNotExist:
             return Response({'error': 'Invalid coupon code.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check active + date validity
         now = timezone.now()
         if not coupon.is_active:
             return Response({'error': 'This coupon is no longer active.'}, status=status.HTTP_400_BAD_REQUEST)
@@ -131,7 +138,6 @@ class ApplyCouponView(APIView):
         if now > coupon.valid_to:
             return Response({'error': 'This coupon has expired.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Get cart total
         try:
             cart = Cart.objects.prefetch_related('items__variation').get(user=request.user)
         except Cart.DoesNotExist:
@@ -143,7 +149,6 @@ class ApplyCouponView(APIView):
 
         cart_total = sum(item.quantity * item.variation.b2b_price for item in items)
 
-        # Check minimum order value
         if cart_total < coupon.min_order_value:
             return Response(
                 {'error': f'Minimum order value for this coupon is ₹{coupon.min_order_value}.'},
@@ -205,9 +210,7 @@ class CheckoutView(APIView):
         if not items.exists():
             return Response({'error': 'Cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        total_amount = sum(item.quantity * item.variation.b2b_price for item in items)
-
-        # Validate and apply coupon
+        total_amount    = sum(item.quantity * item.variation.b2b_price for item in items)
         coupon          = None
         discount_amount = Decimal('0.00')
 
@@ -218,7 +221,7 @@ class CheckoutView(APIView):
                 if coupon.is_active and coupon.valid_from <= now <= coupon.valid_to and total_amount >= coupon.min_order_value:
                     discount_amount = coupon.calculate_discount(total_amount)
                 else:
-                    coupon = None  # invalid at checkout time — ignore silently
+                    coupon = None
             except Coupon.DoesNotExist:
                 coupon = None
 
@@ -245,7 +248,6 @@ class CheckoutView(APIView):
         ])
 
         cart.items.all().delete()
-
         return Response(OrderSerializer(order).data, status=status.HTTP_201_CREATED)
 
 

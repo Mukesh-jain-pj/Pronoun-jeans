@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import {
   ShoppingCart, PackageCheck, Loader, AlertCircle, CheckCircle2,
   ArrowRight, Tag, ReceiptText, Plus, Minus, Trash2,
-  Truck, CreditCard, Building, ShieldCheck, Landmark, Clock, X,
+  Truck, CreditCard, Building, ShieldCheck, Landmark, Clock,
+  X, Lock, Unlock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import api from '../api/axios';
 
-// ── Toast ──────────────────────────────────────────────────────────────────
+// ── Toast ─────────────────────────────────────────────────────────────────────
 
 const Toast = ({ message, type = 'success', onDone }) => {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, [onDone]);
@@ -41,7 +42,7 @@ const EmptyCart = ({ navigate }) => (
   </div>
 );
 
-// ── Qty Control ───────────────────────────────────────────────────────────
+// ── Qty Control ───────────────────────────────────────────────────────────────
 
 const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange }) => (
   <div className="flex items-center rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 w-fit">
@@ -81,7 +82,7 @@ const useQtyUpdate = (showToast) => {
   return { saving, scheduleUpdate };
 };
 
-// ── Cart Row ──────────────────────────────────────────────────────────────
+// ── Cart Row ──────────────────────────────────────────────────────────────────
 
 const CartRow = ({ item, index, onQtyChange, saving }) => {
   const { id, variation, quantity } = item;
@@ -119,7 +120,7 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
   );
 };
 
-// ── Payment options ───────────────────────────────────────────────────────
+// ── Payment Options ───────────────────────────────────────────────────────────
 
 const PAYMENT_OPTIONS = [
   { value: 'razorpay',      label: 'Razorpay',             subtitle: 'Pay now via UPI, Card or NetBanking', icon: CreditCard },
@@ -127,7 +128,7 @@ const PAYMENT_OPTIONS = [
   { value: 'bank_transfer', label: 'Direct Bank Transfer', subtitle: 'NEFT / RTGS / IMPS to our account',   icon: Landmark   },
 ];
 
-// ── Address card ──────────────────────────────────────────────────────────
+// ── Address Card ──────────────────────────────────────────────────────────────
 
 const AddressCard = ({ addr, selected, onSelect, type }) => {
   const Icon = type === 'shipping' ? Truck : Building;
@@ -150,76 +151,183 @@ const AddressCard = ({ addr, selected, onSelect, type }) => {
   );
 };
 
-// ── Coupon Row ────────────────────────────────────────────────────────────
+// ── Coupon Label Helper ───────────────────────────────────────────────────────
 
-const CouponRow = ({ onApply, applied, onRemove }) => {
-  const [code, setCode]         = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [error, setError]       = useState('');
+const couponLabel = (c) => {
+  if (c.discount_type === 'percentage') return `${c.discount_value}% Off`;
+  return `Flat ₹${parseFloat(c.discount_value).toFixed(0)} Off`;
+};
 
-  const handleApply = async () => {
-    if (!code.trim()) return;
-    setLoading(true);
-    setError('');
+// ── Available Offers Section ──────────────────────────────────────────────────
+
+const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove }) => {
+  const [expanded, setExpanded]   = useState(true);
+  const [loading, setLoading]     = useState(null); // code being applied
+  const [manualCode, setManualCode] = useState('');
+  const [manualError, setManualError] = useState('');
+  const [manualLoading, setManualLoading] = useState(false);
+
+  const handleApplyCode = async (code) => {
+    setLoading(code);
     try {
-      const res = await api.post('orders/cart/apply-coupon/', { coupon_code: code.trim() });
+      const res = await api.post('orders/cart/apply-coupon/', { coupon_code: code });
       onApply(res.data);
-      setCode('');
     } catch (err) {
-      setError(err.response?.data?.error || 'Invalid coupon code.');
+      // silently fail — shouldn't happen since we only show Apply on unlocked coupons
     } finally {
-      setLoading(false);
+      setLoading(null);
     }
   };
 
-  if (applied) {
-    return (
-      <div className="flex items-center justify-between bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl px-4 py-3">
-        <div className="flex items-center gap-2">
-          <Tag className="w-4 h-4 text-green-600 dark:text-green-400" />
-          <span className="text-green-700 dark:text-green-400 text-sm font-bold">{applied.coupon_code} applied</span>
-          <span className="text-green-600 dark:text-green-400 text-xs">— you save ₹{parseFloat(applied.discount_amount).toFixed(2)}</span>
-        </div>
-        <button onClick={onRemove} className="text-green-600 dark:text-green-400 hover:text-red-500 transition-colors">
-          <X className="w-4 h-4" />
-        </button>
-      </div>
-    );
-  }
+  const handleManualApply = async () => {
+    if (!manualCode.trim()) return;
+    setManualLoading(true);
+    setManualError('');
+    try {
+      const res = await api.post('orders/cart/apply-coupon/', { coupon_code: manualCode.trim() });
+      onApply(res.data);
+      setManualCode('');
+    } catch (err) {
+      setManualError(err.response?.data?.error || 'Invalid coupon code.');
+    } finally {
+      setManualLoading(false);
+    }
+  };
 
   return (
-    <div className="space-y-1.5">
-      <div className="flex gap-2">
-        <div className="relative flex-1">
-          <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-zinc-500 pointer-events-none" />
-          <input
-            type="text" value={code} onChange={e => setCode(e.target.value.toUpperCase())}
-            onKeyDown={e => e.key === 'Enter' && handleApply()}
-            placeholder="Enter coupon code"
-            className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 rounded-xl pl-9 pr-4 py-2.5 text-sm focus:outline-none focus:border-accent transition-colors"
-          />
+    <div className="border-t border-gray-100 dark:border-white/5 pt-4 space-y-3">
+
+      {/* Section header */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        className="flex items-center justify-between w-full"
+      >
+        <div className="flex items-center gap-2">
+          <Tag className="w-4 h-4 text-accent" />
+          <p className="text-gray-900 dark:text-zinc-100 text-sm font-bold">Available Offers</p>
+          {coupons.length > 0 && (
+            <span className="bg-accent/10 text-accent text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+              {coupons.length}
+            </span>
+          )}
         </div>
-        <button onClick={handleApply} disabled={loading || !code.trim()}
-          className="px-4 py-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
-          {loading ? <Loader className="animate-spin w-4 h-4" /> : 'Apply'}
-        </button>
-      </div>
-      {error && <p className="text-red-500 dark:text-red-400 text-xs">{error}</p>}
+        {expanded
+          ? <ChevronUp className="w-4 h-4 text-gray-400 dark:text-zinc-500" />
+          : <ChevronDown className="w-4 h-4 text-gray-400 dark:text-zinc-500" />
+        }
+      </button>
+
+      {expanded && (
+        <div className="space-y-2">
+
+          {/* Applied coupon pill */}
+          {appliedCoupon && (
+            <div className="flex items-center justify-between bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl px-3 py-2.5">
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-400" />
+                <span className="text-green-700 dark:text-green-400 text-sm font-bold">{appliedCoupon.coupon_code}</span>
+                <span className="text-green-600 dark:text-green-400 text-xs">saving ₹{parseFloat(appliedCoupon.discount_amount).toFixed(2)}</span>
+              </div>
+              <button onClick={onRemove} className="text-green-500 hover:text-red-500 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* Coupon cards */}
+          {coupons.map(c => {
+            const minVal    = parseFloat(c.min_order_value);
+            const unlocked  = cartTotal >= minVal;
+            const shortfall = minVal - cartTotal;
+            const isApplied = appliedCoupon?.coupon_code === c.code;
+
+            return (
+              <div key={c.id}
+                className={`rounded-xl border p-3 transition-all ${
+                  isApplied
+                    ? 'border-green-200 dark:border-green-500/20 bg-green-50/50 dark:bg-green-500/5'
+                    : unlocked
+                      ? 'border-gray-200 dark:border-white/10 bg-white dark:bg-zinc-800'
+                      : 'border-gray-100 dark:border-white/5 bg-gray-50/50 dark:bg-zinc-900/50'
+                }`}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                    <div className={`mt-0.5 shrink-0 ${unlocked ? 'text-accent' : 'text-gray-300 dark:text-zinc-600'}`}>
+                      {unlocked ? <Unlock className="w-3.5 h-3.5" /> : <Lock className="w-3.5 h-3.5" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-bold text-sm text-gray-900 dark:text-zinc-100">{c.code}</span>
+                        <span className="text-accent text-xs font-bold">{couponLabel(c)}</span>
+                      </div>
+                      {!unlocked && (
+                        <p className="text-yellow-600 dark:text-yellow-400 text-xs mt-0.5 leading-snug">
+                          Add ₹{shortfall.toLocaleString('en-IN', { maximumFractionDigits: 0 })} more to unlock this offer
+                        </p>
+                      )}
+                      {unlocked && minVal > 0 && (
+                        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-0.5">
+                          Min order ₹{minVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Apply / Applied button */}
+                  {isApplied ? (
+                    <span className="text-green-600 dark:text-green-400 text-xs font-bold shrink-0 mt-0.5">Applied ✓</span>
+                  ) : (
+                    <button
+                      onClick={() => unlocked && handleApplyCode(c.code)}
+                      disabled={!unlocked || !!appliedCoupon || loading === c.code}
+                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${
+                        unlocked && !appliedCoupon
+                          ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white border border-accent/20'
+                          : 'text-gray-300 dark:text-zinc-600 cursor-not-allowed'
+                      }`}
+                    >
+                      {loading === c.code ? <Loader className="animate-spin w-3 h-3" /> : 'Apply'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Manual entry */}
+          <div className="pt-1 space-y-1.5">
+            <div className="flex gap-2">
+              <input
+                type="text" value={manualCode} onChange={e => setManualCode(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleManualApply()}
+                placeholder="Enter coupon code"
+                className="flex-1 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 dark:placeholder-zinc-500 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-accent transition-colors"
+              />
+              <button onClick={handleManualApply} disabled={manualLoading || !manualCode.trim()}
+                className="px-4 py-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-sm transition-colors whitespace-nowrap">
+                {manualLoading ? <Loader className="animate-spin w-4 h-4" /> : 'Apply'}
+              </button>
+            </div>
+            {manualError && <p className="text-red-500 dark:text-red-400 text-xs">{manualError}</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// ── Checkout panel ────────────────────────────────────────────────────────
+// ── Checkout Panel ────────────────────────────────────────────────────────────
 
 const CheckoutPanel = ({
   items, addresses, shippingId, billingId, paymentMethod,
   onShippingSelect, onBillingSelect, onPaymentSelect,
   onCheckout, checking, couponData, onCouponApply, onCouponRemove,
+  availableCoupons,
 }) => {
-  const subtotal    = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
-  const discount    = couponData ? parseFloat(couponData.discount_amount) : 0;
-  const grandTotal  = subtotal - discount;
-  const totalUnits  = items.reduce((s, i) => s + i.quantity, 0);
+  const subtotal   = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
+  const discount   = couponData ? parseFloat(couponData.discount_amount) : 0;
+  const grandTotal = subtotal - discount;
+  const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
 
   return (
     <div className="flex flex-col xl:flex-row gap-8 items-start">
@@ -301,8 +409,6 @@ const CheckoutPanel = ({
             <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5">
               <span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span>
             </div>
-
-            {/* Discount line */}
             {couponData && discount > 0 && (
               <div className="flex items-center justify-between text-green-600 dark:text-green-400 font-semibold">
                 <span>Discount ({couponData.coupon_code})</span>
@@ -311,11 +417,14 @@ const CheckoutPanel = ({
             )}
           </div>
 
-          {/* Coupon input */}
-          <div className="border-t border-gray-100 dark:border-white/5 pt-4">
-            <p className="text-gray-500 dark:text-zinc-400 text-xs font-bold uppercase tracking-widest mb-2">Coupon Code</p>
-            <CouponRow onApply={onCouponApply} applied={couponData} onRemove={onCouponRemove} />
-          </div>
+          {/* Available Offers */}
+          <AvailableOffers
+            coupons={availableCoupons}
+            cartTotal={subtotal}
+            appliedCoupon={couponData}
+            onApply={onCouponApply}
+            onRemove={onCouponRemove}
+          />
 
           {/* Grand total */}
           <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
@@ -345,58 +454,62 @@ const CheckoutPanel = ({
   );
 };
 
-// ── Main Cart ─────────────────────────────────────────────────────────────
+// ── Main Cart ─────────────────────────────────────────────────────────────────
 
 const Cart = () => {
   const navigate = useNavigate();
-  const [items, setItems]                 = useState([]);
-  const [addresses, setAddresses]         = useState([]);
-  const [shippingId, setShippingId]       = useState(null);
-  const [billingId, setBillingId]         = useState(null);
-  const [paymentMethod, setPaymentMethod] = useState('bank_transfer');
-  const [loading, setLoading]             = useState(true);
-  const [checking, setChecking]           = useState(false);
-  const [success, setSuccess]             = useState(false);
-  const [toast, setToast]                 = useState(null);
-  const [couponData, setCouponData]       = useState(null); // { coupon_code, discount_amount, grand_total }
+  const [items, setItems]                   = useState([]);
+  const [addresses, setAddresses]           = useState([]);
+  const [availableCoupons, setAvailableCoupons] = useState([]);
+  const [shippingId, setShippingId]         = useState(null);
+  const [billingId, setBillingId]           = useState(null);
+  const [paymentMethod, setPaymentMethod]   = useState('bank_transfer');
+  const [loading, setLoading]               = useState(true);
+  const [checking, setChecking]             = useState(false);
+  const [success, setSuccess]               = useState(false);
+  const [toast, setToast]                   = useState(null);
+  const [couponData, setCouponData]         = useState(null);
 
   const showToast  = useCallback((message, type = 'success') => setToast({ message, type }), []);
   const clearToast = useCallback(() => setToast(null), []);
   const { saving, scheduleUpdate } = useQtyUpdate(showToast);
 
   useEffect(() => {
-    Promise.all([api.get('orders/cart/'), api.get('accounts/addresses/')])
-      .then(([cartRes, addrRes]) => {
-        const cartItems = cartRes.data?.items ?? [];
-        const addrs     = addrRes.data ?? [];
-        setItems(cartItems);
-        setAddresses(addrs);
-        const defShipping = addrs.find(a => a.is_default_shipping);
-        const defBilling  = addrs.find(a => a.is_default_billing);
-        if (defShipping) setShippingId(defShipping.id);
-        if (defBilling)  setBillingId(defBilling.id);
-      }).catch(() => showToast('Failed to load cart.', 'error'))
-        .finally(() => setLoading(false));
+    Promise.all([
+      api.get('orders/cart/'),
+      api.get('accounts/addresses/'),
+      api.get('orders/coupons/active/'),
+    ]).then(([cartRes, addrRes, couponRes]) => {
+      const cartItems = cartRes.data?.items ?? [];
+      const addrs     = addrRes.data ?? [];
+      const coupons   = couponRes.data?.results ?? couponRes.data ?? [];
+      setItems(cartItems);
+      setAddresses(addrs);
+      setAvailableCoupons(coupons);
+      const defShipping = addrs.find(a => a.is_default_shipping);
+      const defBilling  = addrs.find(a => a.is_default_billing);
+      if (defShipping) setShippingId(defShipping.id);
+      if (defBilling)  setBillingId(defBilling.id);
+    }).catch(() => showToast('Failed to load cart.', 'error'))
+      .finally(() => setLoading(false));
   }, [showToast]);
 
   const handleQtyChange = useCallback((cartItemId, newQty) => {
     if (newQty <= 0) {
       setItems(prev => prev.filter(i => i.id !== cartItemId));
       scheduleUpdate(cartItemId, 0);
-      // Clear coupon when cart changes
       setCouponData(null);
       return;
     }
     setItems(prev => prev.map(i => i.id === cartItemId ? { ...i, quantity: newQty } : i));
     scheduleUpdate(cartItemId, newQty);
-    setCouponData(null); // re-validate coupon on qty change
+    setCouponData(null);
   }, [scheduleUpdate]);
 
   const handleCheckout = async () => {
     if (checking) return;
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
-
     setChecking(true);
     try {
       await api.post('orders/checkout/', {
@@ -495,7 +608,9 @@ const Cart = () => {
                       onDecrement={() => handleQtyChange(item.id, item.quantity - 1)}
                       onIncrement={() => handleQtyChange(item.id, item.quantity + 1)}
                       onDirectChange={(v) => handleQtyChange(item.id, v)} />
-                    <span className="text-gray-900 dark:text-zinc-100 font-bold">₹{(parseFloat(item.variation?.b2b_price ?? 0) * item.quantity).toFixed(2)}</span>
+                    <span className="text-gray-900 dark:text-zinc-100 font-bold">
+                      ₹{(parseFloat(item.variation?.b2b_price ?? 0) * item.quantity).toFixed(2)}
+                    </span>
                   </div>
                 </div>
               ))}
@@ -515,6 +630,7 @@ const Cart = () => {
               couponData={couponData}
               onCouponApply={setCouponData}
               onCouponRemove={() => setCouponData(null)}
+              availableCoupons={availableCoupons}
             />
           </div>
         )}
