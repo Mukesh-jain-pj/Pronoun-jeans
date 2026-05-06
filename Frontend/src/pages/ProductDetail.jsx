@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Loader, BadgeCheck, ShoppingCart,
@@ -36,35 +36,118 @@ const Toast = ({ onDone }) => {
 
 // ── Color Swatch ──────────────────────────────────────────────────────────────
 
-const ColorSwatch = ({ hex, name, size = 'sm' }) => {
-  const dim = size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4';
+const ColorSwatch = ({ hex, name }) => (
+  <span className="inline-flex items-center gap-1.5">
+    <span
+      className="w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block"
+      style={{ backgroundColor: hex || '#CCCCCC' }}
+      title={name}
+    />
+    <span>{name}</span>
+  </span>
+);
+
+// ── Amazon-style Image Zoom ───────────────────────────────────────────────────
+
+const ZOOM_SCALE = 2.5;
+
+const ZoomableImage = ({ src, alt }) => {
+  const containerRef            = useRef(null);
+  const [zooming, setZooming]   = useState(false);
+  const [lens, setLens]         = useState({ x: 0, y: 0 });
+  const [bgPos, setBgPos]       = useState({ x: 0, y: 0 });
+
+  const handleMouseMove = useCallback((e) => {
+    const rect  = containerRef.current.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const lensW = rect.width  * 0.4;
+    const lensH = rect.height * 0.4;
+
+    let lx = mouseX - lensW / 2;
+    let ly = mouseY - lensH / 2;
+    lx = Math.max(0, Math.min(lx, rect.width  - lensW));
+    ly = Math.max(0, Math.min(ly, rect.height - lensH));
+
+    const lxPct = (lx / rect.width)  * 100;
+    const lyPct = (ly / rect.height) * 100;
+
+    setLens({ x: lxPct, y: lyPct });
+    setBgPos({ x: lxPct * ZOOM_SCALE, y: lyPct * ZOOM_SCALE });
+  }, []);
+
+  if (!src) return (
+    <div className="w-full aspect-square rounded-2xl bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/5 flex items-center justify-center">
+      <ShoppingCart className="w-16 h-16 text-gray-300 dark:text-zinc-700" />
+    </div>
+  );
+
   return (
-    <span className="inline-flex items-center gap-1.5">
-      <span
-        className={`${dim} rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block`}
-        style={{ backgroundColor: hex || '#CCCCCC' }}
-        title={name}
-      />
-      <span>{name}</span>
-    </span>
+    <div className="relative" style={{ isolation: 'isolate' }}>
+      {/* Main image */}
+      <div
+        ref={containerRef}
+        className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/5 aspect-square shadow-sm cursor-crosshair select-none relative"
+        onMouseEnter={() => setZooming(true)}
+        onMouseLeave={() => setZooming(false)}
+        onMouseMove={handleMouseMove}
+      >
+        <img
+          src={src}
+          alt={alt}
+          className="w-full h-full object-cover"
+          draggable={false}
+          onError={(e) => { e.target.style.display = 'none'; }}
+        />
+        {/* Lens highlight */}
+        {zooming && (
+          <div
+            className="absolute border-2 border-accent/50 bg-white/20 pointer-events-none"
+            style={{
+              left:   `${lens.x}%`,
+              top:    `${lens.y}%`,
+              width:  '40%',
+              height: '40%',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Magnified panel — floats right, outside the container */}
+      {zooming && (
+        <div
+          className="absolute top-0 rounded-2xl border border-gray-200 dark:border-white/10 shadow-2xl z-50"
+          style={{
+            left:               'calc(100% + 16px)',
+            width:              '420px',
+            height:             '420px',
+            backgroundImage:    `url(${src})`,
+            backgroundRepeat:   'no-repeat',
+            backgroundSize:     `${ZOOM_SCALE * 100}%`,
+            backgroundPosition: `${bgPos.x}% ${bgPos.y}%`,
+          }}
+        />
+      )}
+    </div>
   );
 };
 
-// ── Price Cell — B2B price only ───────────────────────────────────────────────
+// ── Price Cell — Set price primary ────────────────────────────────────────────
 
 const PriceCell = ({ v }) => {
-  const price    = parseFloat(v.b2b_price);
+  const perPiece = parseFloat(v.b2b_price);
   const setPrice = v.mrp && parseFloat(v.mrp) > 0 ? parseFloat(v.mrp) : null;
 
   return (
     <td className="px-4 py-3">
-      <p className="text-gray-900 dark:text-zinc-100 font-bold text-sm">
-        ₹{price.toFixed(2)}
-      </p>
-      {setPrice && (
-        <p className="text-gray-400 dark:text-zinc-500 text-[10px] uppercase tracking-widest mt-0.5">
-          set ₹{setPrice.toFixed(2)}
-        </p>
+      {setPrice ? (
+        <>
+          <p className="text-gray-900 dark:text-zinc-100 font-bold text-sm">₹{setPrice.toFixed(2)}</p>
+          <p className="text-gray-400 dark:text-zinc-500 text-[10px] mt-0.5">₹{perPiece.toFixed(2)} / pc</p>
+        </>
+      ) : (
+        <p className="text-gray-900 dark:text-zinc-100 font-bold text-sm">₹{perPiece.toFixed(2)}</p>
       )}
     </td>
   );
@@ -75,14 +158,10 @@ const PriceCell = ({ v }) => {
 const MrpMarginCell = ({ v }) => {
   const hasMrp = v.mrp && parseFloat(v.mrp) > 0;
   const margin = v.margin_percentage;
-
   if (!hasMrp) return <td className="px-4 py-3 text-gray-300 dark:text-zinc-700 text-xs">—</td>;
-
   return (
     <td className="px-4 py-3">
-      <p className="text-gray-400 dark:text-zinc-500 text-xs line-through">
-        ₹{parseFloat(v.mrp).toFixed(2)}
-      </p>
+      <p className="text-gray-400 dark:text-zinc-500 text-xs line-through">MRP ₹{parseFloat(v.mrp).toFixed(2)}</p>
       {margin > 0 && (
         <span className="inline-flex items-center bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-500/20 text-[10px] font-bold px-1.5 py-0.5 rounded-full whitespace-nowrap mt-0.5">
           {margin}%
@@ -124,10 +203,7 @@ const ProductDetail = () => {
 
   useEffect(() => {
     api.get(`products/catalog/${slug}/`)
-      .then(res => {
-        setProduct(res.data);
-        setMainImage(res.data.image);
-      })
+      .then(res => { setProduct(res.data); setMainImage(res.data.image); })
       .catch(err => console.error(err))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -144,9 +220,7 @@ const ProductDetail = () => {
 
   const handleSwatchClick = (colorName) => {
     setActiveColor(colorName);
-    const match = product.variations.find(
-      v => (v.color_name || v.color) === colorName && v.image
-    );
+    const match = product.variations.find(v => (v.color_name || v.color) === colorName && v.image);
     setMainImage(match ? match.image : product.image);
   };
 
@@ -189,7 +263,6 @@ const ProductDetail = () => {
       <Loader className="animate-spin text-accent w-10 h-10" />
     </div>
   );
-
   if (!product) return (
     <div className="flex items-center justify-center min-h-screen bg-gray-50 dark:bg-zinc-950">
       <p className="text-gray-500 dark:text-zinc-400">Product not found.</p>
@@ -206,62 +279,32 @@ const ProductDetail = () => {
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start">
+        {/* overflow visible so zoom panel can escape the left column */}
+        <div className="flex flex-col lg:flex-row gap-8 items-start" style={{ overflow: 'visible' }}>
 
-          {/* ── Left panel — wider for bigger image ────────────────────── */}
-          <div className="w-full lg:w-96 xl:w-[420px] shrink-0">
+          {/* ── Left panel ─────────────────────────────────────────────── */}
+          <div className="w-full lg:w-96 xl:w-[420px] shrink-0" style={{ overflow: 'visible' }}>
 
-            {/* ── Main image with zoom on hover ── */}
-            <div className="rounded-2xl overflow-hidden bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/5 aspect-square shadow-sm group cursor-zoom-in">
-              {mainImage ? (
-                <img
-                  src={mainImage}
-                  alt={product.name}
-                  className="w-full h-full object-cover transition-transform duration-300 ease-in-out group-hover:scale-110"
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <ShoppingCart className="w-16 h-16 text-gray-300 dark:text-zinc-700" />
-                </div>
-              )}
-            </div>
+            <ZoomableImage src={mainImage} alt={product.name} />
 
-            {/* ── Thumbnail strip — bigger thumbnails ── */}
+            {/* Thumbnails */}
             {product.gallery_images && product.gallery_images.length > 0 && (
-              <div className="flex gap-3 mt-4 overflow-x-auto pb-2 scrollbar-hide">
-                {/* Featured image as first thumbnail */}
+              <div className="flex gap-3 mt-4 overflow-x-auto pb-2">
                 {product.image && (
                   <button
                     onClick={() => setMainImage(product.image)}
-                    className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all group ${
-                      mainImage === product.image
-                        ? 'border-accent shadow-sm'
-                        : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-600'
-                    }`}
+                    className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${mainImage === product.image ? 'border-accent shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-600'}`}
                   >
-                    <img
-                      src={product.image}
-                      alt="Main"
-                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                    />
+                    <img src={product.image} alt="Main" className="w-full h-full object-cover" />
                   </button>
                 )}
                 {product.gallery_images.map((img) => (
                   <button
                     key={img.id}
                     onClick={() => setMainImage(img.image)}
-                    className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all group ${
-                      mainImage === img.image
-                        ? 'border-accent shadow-sm'
-                        : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-600'
-                    }`}
+                    className={`w-20 h-20 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${mainImage === img.image ? 'border-accent shadow-sm' : 'border-transparent hover:border-gray-300 dark:hover:border-zinc-600'}`}
                   >
-                    <img
-                      src={img.image}
-                      alt={img.alt_text || 'Gallery view'}
-                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-110"
-                    />
+                    <img src={img.image} alt={img.alt_text || 'Gallery view'} className="w-full h-full object-cover" />
                   </button>
                 ))}
               </div>
@@ -273,7 +316,6 @@ const ProductDetail = () => {
                 <h1 className="text-gray-900 dark:text-zinc-100 text-lg font-bold leading-snug mt-0.5">{product.name}</h1>
               </div>
 
-              {/* Clickable color swatch strip */}
               {uniqueColors.length > 0 && (
                 <div>
                   <p className="text-gray-400 dark:text-zinc-500 text-xs uppercase tracking-widest mb-2">
@@ -281,28 +323,19 @@ const ProductDetail = () => {
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {uniqueColors.map(v => {
-                      const name     = v.color_name || v.color || '';
-                      const hex      = v.color_hex  || '#CCCCCC';
+                      const name = v.color_name || v.color || '';
+                      const hex  = v.color_hex  || '#CCCCCC';
                       const isActive = activeColor === name;
                       return (
-                        <button
-                          key={name}
-                          onClick={() => handleSwatchClick(name)}
-                          title={name}
-                          className={`w-7 h-7 rounded-full border-2 transition-all ${
-                            isActive
-                              ? 'border-accent scale-110 shadow-md'
-                              : 'border-gray-200 dark:border-white/20 hover:border-gray-400 dark:hover:border-white/40'
-                          }`}
+                        <button key={name} onClick={() => handleSwatchClick(name)} title={name}
+                          className={`w-7 h-7 rounded-full border-2 transition-all ${isActive ? 'border-accent scale-110 shadow-md' : 'border-gray-200 dark:border-white/20 hover:border-gray-400 dark:hover:border-white/40'}`}
                           style={{ backgroundColor: hex }}
                         />
                       );
                     })}
                     {activeColor && (
-                      <button
-                        onClick={() => { setActiveColor(null); setMainImage(product.image); }}
-                        className="text-xs text-gray-400 dark:text-zinc-500 hover:text-accent transition-colors self-center ml-1"
-                      >
+                      <button onClick={() => { setActiveColor(null); setMainImage(product.image); }}
+                        className="text-xs text-gray-400 dark:text-zinc-500 hover:text-accent transition-colors self-center ml-1">
                         Reset
                       </button>
                     )}
@@ -310,21 +343,16 @@ const ProductDetail = () => {
                 </div>
               )}
 
-              {/* Pricing summary */}
               {isAuthenticated && firstV && (
                 <div className="bg-white dark:bg-zinc-900 border border-gray-100 dark:border-white/5 rounded-xl p-3 space-y-1.5">
                   <div className="flex items-center justify-between">
                     <span className="text-gray-400 dark:text-zinc-500 text-xs">Per piece</span>
-                    <span className="text-gray-900 dark:text-zinc-100 font-bold text-sm">
-                      ₹{parseFloat(firstV.b2b_price).toFixed(2)}
-                    </span>
+                    <span className="text-gray-900 dark:text-zinc-100 font-bold text-sm">₹{parseFloat(firstV.b2b_price).toFixed(2)}</span>
                   </div>
                   {firstV.mrp && parseFloat(firstV.mrp) > 0 && (
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400 dark:text-zinc-500 text-xs">MRP</span>
-                      <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">
-                        ₹{parseFloat(firstV.mrp).toFixed(2)}
-                      </span>
+                      <span className="text-gray-400 dark:text-zinc-600 text-xs line-through">₹{parseFloat(firstV.mrp).toFixed(2)}</span>
                     </div>
                   )}
                   {firstV.margin_percentage > 0 && (
@@ -337,22 +365,18 @@ const ProductDetail = () => {
                   )}
                   <div className="flex items-center justify-between border-t border-gray-100 dark:border-white/5 pt-1.5">
                     <span className="text-gray-500 dark:text-zinc-400 text-xs font-semibold">Min. order total</span>
-                    <span className="text-accent font-black text-base">
-                      ₹{(parseFloat(firstV.b2b_price) * product.moq).toFixed(2)}
-                    </span>
+                    <span className="text-accent font-black text-base">₹{(parseFloat(firstV.b2b_price) * product.moq).toFixed(2)}</span>
                   </div>
                 </div>
               )}
 
               {isAuthenticated ? (
                 <div className="inline-flex items-center gap-1.5 bg-accent/10 border border-accent/30 text-accent text-xs font-semibold px-3 py-1.5 rounded-full">
-                  <BadgeCheck className="w-3.5 h-3.5" />
-                  MOQ: {product.moq} units
+                  <BadgeCheck className="w-3.5 h-3.5" /> MOQ: {product.moq} units
                 </div>
               ) : (
                 <div className="inline-flex items-center gap-1.5 bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-500 dark:text-zinc-400 text-xs font-semibold px-3 py-1.5 rounded-full">
-                  <Lock className="w-3.5 h-3.5" />
-                  Login to see wholesale pricing
+                  <Lock className="w-3.5 h-3.5" /> Login to see wholesale pricing
                 </div>
               )}
             </div>
@@ -382,9 +406,7 @@ const ProductDetail = () => {
                       <tr className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]">
                         <th className="text-left px-4 py-3">Size / Color</th>
                         <th className="text-left px-4 py-3">SKU</th>
-                        {/* Price: shows b2b price + set price below it */}
-                        <th className="text-left px-4 py-3">Price</th>
-                        {/* MRP/Margin: shows MRP strikethrough + margin % badge */}
+                        <th className="text-left px-4 py-3">Set Price</th>
                         <th className="text-left px-4 py-3">MRP / Margin</th>
                         <th className="text-left px-4 py-3 w-24">QTY</th>
                         <th className="text-left px-4 py-3">Line Total</th>
@@ -392,46 +414,25 @@ const ProductDetail = () => {
                     </thead>
                     <tbody>
                       {product.variations.map((v, idx) => (
-                        <tr
-                          key={v.id}
-                          className={`border-b border-gray-100 dark:border-white/5 transition-colors ${
-                            quantities[v.id] > 0
-                              ? 'bg-red-50/50 dark:bg-accent/5'
-                              : idx % 2 === 0
-                                ? 'bg-gray-50/50 dark:bg-white/[0.02]'
-                                : 'bg-white dark:bg-transparent'
-                          }`}
-                        >
-                          {/* Size / Color */}
+                        <tr key={v.id} className={`border-b border-gray-100 dark:border-white/5 transition-colors ${quantities[v.id] > 0 ? 'bg-red-50/50 dark:bg-accent/5' : idx % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.02]' : 'bg-white dark:bg-transparent'}`}>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <span className="text-gray-700 dark:text-zinc-300 font-semibold text-xs">{v.size}</span>
                               <span className="text-gray-400 dark:text-zinc-600">/</span>
-                              <ColorSwatch hex={v.color_hex || '#CCCCCC'} name={v.color_name || v.color} size="sm" />
+                              <ColorSwatch hex={v.color_hex || '#CCCCCC'} name={v.color_name || v.color} />
                             </div>
                           </td>
-
-                          {/* SKU */}
                           <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
-
-                          {/* Price — b2b price bold, set price (MRP) small below */}
                           <PriceCell v={v} />
-
-                          {/* MRP / Margin — MRP strikethrough + margin % only */}
                           <MrpMarginCell v={v} />
-
-                          {/* QTY */}
                           <td className="px-4 py-3">
-                            <input
-                              type="number" min="0"
+                            <input type="number" min="0"
                               value={quantities[v.id] || ''}
                               onChange={(e) => handleQtyChange(v.id, e.target.value)}
                               placeholder="0"
                               className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors"
                             />
                           </td>
-
-                          {/* Line total */}
                           <TotalCell v={v} qty={quantities[v.id] || 0} />
                         </tr>
                       ))}
@@ -439,7 +440,6 @@ const ProductDetail = () => {
                   </table>
                 </div>
 
-                {/* Footer */}
                 <div className="px-5 py-4 border-t border-gray-100 dark:border-white/5">
                   {totalSelected > 0 && (
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3 p-3 bg-gray-50 dark:bg-zinc-800/50 rounded-xl">
@@ -450,22 +450,17 @@ const ProductDetail = () => {
                         </div>
                         <div>
                           <p className="text-gray-400 dark:text-zinc-500 text-xs">Order total</p>
-                          <p className="text-gray-900 dark:text-zinc-100 font-black text-lg">
-                            ₹{totalOrderValue.toFixed(2)}
-                          </p>
+                          <p className="text-gray-900 dark:text-zinc-100 font-black text-lg">₹{totalOrderValue.toFixed(2)}</p>
                         </div>
                         {firstV && totalSelected > 0 && (
                           <div>
                             <p className="text-gray-400 dark:text-zinc-500 text-xs">Avg. per piece</p>
-                            <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm">
-                              ₹{(totalOrderValue / totalSelected).toFixed(2)}
-                            </p>
+                            <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm">₹{(totalOrderValue / totalSelected).toFixed(2)}</p>
                           </div>
                         )}
                       </div>
                     </div>
                   )}
-
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                     <div>
                       {error && (
@@ -474,16 +469,11 @@ const ProductDetail = () => {
                         </div>
                       )}
                       {!error && totalSelected === 0 && (
-                        <p className="text-gray-400 dark:text-zinc-500 text-xs">
-                          Enter quantities above. Min. order: {product.moq} units.
-                        </p>
+                        <p className="text-gray-400 dark:text-zinc-500 text-xs">Enter quantities above. Min. order: {product.moq} units.</p>
                       )}
                     </div>
-                    <button
-                      onClick={handleBulkAdd}
-                      disabled={submitting}
-                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-xl transition-colors text-sm uppercase tracking-wide whitespace-nowrap"
-                    >
+                    <button onClick={handleBulkAdd} disabled={submitting}
+                      className="w-full sm:w-auto flex items-center justify-center gap-2 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-2.5 rounded-xl transition-colors text-sm uppercase tracking-wide whitespace-nowrap">
                       {submitting ? <Loader className="animate-spin w-4 h-4" /> : <ShoppingCart className="w-4 h-4" />}
                       {submitting ? 'Adding...' : 'Add to Cart'}
                     </button>
@@ -499,10 +489,8 @@ const ProductDetail = () => {
                 <p className="text-gray-500 dark:text-zinc-400 text-sm max-w-sm mb-6 leading-relaxed">
                   Sign in to your partner account to view B2B pricing, MOQ details, and place bulk orders.
                 </p>
-                <button
-                  onClick={() => navigate('/login', { state: { from: { pathname: `/product/${slug}` } } })}
-                  className="bg-accent hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-colors text-sm"
-                >
+                <button onClick={() => navigate('/login', { state: { from: { pathname: `/product/${slug}` } } })}
+                  className="bg-accent hover:bg-red-700 text-white font-bold px-8 py-3 rounded-xl transition-colors text-sm">
                   Sign In to Order
                 </button>
                 <p className="text-gray-400 dark:text-zinc-600 text-xs mt-4">Not a partner yet? Contact your account manager.</p>
