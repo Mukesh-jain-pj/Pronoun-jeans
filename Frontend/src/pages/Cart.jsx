@@ -8,15 +8,24 @@ import {
 } from 'lucide-react';
 import api from '../api/axios';
 
+// ── Razorpay script loader ────────────────────────────────────────────────────
+
+const loadRazorpayScript = () =>
+  new Promise((resolve) => {
+    if (window.Razorpay) { resolve(true); return; }
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload  = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+
 // ── Color Swatch ──────────────────────────────────────────────────────────────
 
 const ColorSwatch = ({ hex, name }) => (
   <span className="inline-flex items-center gap-1.5">
-    <span
-      className="w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block"
-      style={{ backgroundColor: hex || '#CCCCCC' }}
-      title={name}
-    />
+    <span className="w-3.5 h-3.5 rounded-full border border-gray-300 dark:border-white/20 shrink-0 inline-block"
+      style={{ backgroundColor: hex || '#CCCCCC' }} title={name} />
     <span>{name}</span>
   </span>
 );
@@ -30,7 +39,8 @@ const Toast = ({ message, type = 'success', onDone }) => {
     : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400';
   const Icon = type === 'success' ? CheckCircle2 : AlertCircle;
   return (
-    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-sm font-semibold shadow-2xl ${styles}`} style={{ animation: 'slideUp 0.25s ease' }}>
+    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl border text-sm font-semibold shadow-2xl ${styles}`}
+      style={{ animation: 'slideUp 0.25s ease' }}>
       <Icon className="w-4 h-4 shrink-0" />{message}
     </div>
   );
@@ -49,7 +59,8 @@ const EmptyCart = ({ navigate }) => (
     </div>
     <p className="text-gray-900 dark:text-zinc-100 text-xl font-bold">Your cart is empty</p>
     <p className="text-gray-500 dark:text-zinc-400 text-sm">Add products from the catalogue to get started.</p>
-    <button onClick={() => navigate('/catalog')} className="mt-2 bg-accent hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
+    <button onClick={() => navigate('/catalog')}
+      className="mt-2 bg-accent hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
       Browse Catalog
     </button>
   </div>
@@ -59,7 +70,8 @@ const EmptyCart = ({ navigate }) => (
 
 const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange }) => (
   <div className="flex items-center rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 w-fit">
-    <button onClick={onDecrement} disabled={saving || value <= 1} className="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+    <button onClick={onDecrement} disabled={saving || value <= 1}
+      className="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
       <Minus className="w-3.5 h-3.5" />
     </button>
     <div className="relative w-12 h-8 flex items-center justify-center border-x border-gray-200 dark:border-white/10">
@@ -70,7 +82,8 @@ const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange })
         />
       )}
     </div>
-    <button onClick={onIncrement} disabled={saving} className="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+    <button onClick={onIncrement} disabled={saving}
+      className="w-8 h-8 flex items-center justify-center text-gray-400 dark:text-zinc-500 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
       <Plus className="w-3.5 h-3.5" />
     </button>
   </div>
@@ -99,8 +112,8 @@ const useQtyUpdate = (showToast) => {
 
 const CartRow = ({ item, index, onQtyChange, saving }) => {
   const { id, variation, quantity } = item;
-  const price    = parseFloat(variation?.b2b_price ?? 0);
-  const subtotal = (price * quantity).toFixed(2);
+  const price     = parseFloat(variation?.b2b_price ?? 0);
+  const subtotal  = (price * quantity).toFixed(2);
   const colorName = variation?.color_name || variation?.color || '—';
   const colorHex  = variation?.color_hex  || '#CCCCCC';
 
@@ -179,10 +192,10 @@ const couponLabel = (c) => {
 // ── Available Offers ──────────────────────────────────────────────────────────
 
 const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove }) => {
-  const [expanded, setExpanded]         = useState(true);
-  const [loading, setLoading]           = useState(null);
-  const [manualCode, setManualCode]     = useState('');
-  const [manualError, setManualError]   = useState('');
+  const [expanded, setExpanded]           = useState(true);
+  const [loading, setLoading]             = useState(null);
+  const [manualCode, setManualCode]       = useState('');
+  const [manualError, setManualError]     = useState('');
   const [manualLoading, setManualLoading] = useState(false);
 
   const handleApplyCode = async (code) => {
@@ -190,9 +203,7 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
     try {
       const res = await api.post('orders/cart/apply-coupon/', { coupon_code: code });
       onApply(res.data);
-    } catch { /* only shown on unlocked coupons */ } finally {
-      setLoading(null);
-    }
+    } catch { } finally { setLoading(null); }
   };
 
   const handleManualApply = async () => {
@@ -205,9 +216,7 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
       setManualCode('');
     } catch (err) {
       setManualError(err.response?.data?.error || 'Invalid coupon code.');
-    } finally {
-      setManualLoading(false);
-    }
+    } finally { setManualLoading(false); }
   };
 
   return (
@@ -257,18 +266,21 @@ const AvailableOffers = ({ coupons, cartTotal, appliedCoupon, onApply, onRemove 
                       </div>
                       {!unlocked && (
                         <p className="text-yellow-600 dark:text-yellow-400 text-xs mt-0.5 leading-snug">
-                          Add ₹{shortfall.toLocaleString('en-IN', { maximumFractionDigits: 0 })} more to unlock this offer
+                          Add ₹{shortfall.toLocaleString('en-IN', { maximumFractionDigits: 0 })} more to unlock
                         </p>
                       )}
                       {unlocked && minVal > 0 && (
-                        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-0.5">Min order ₹{minVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</p>
+                        <p className="text-gray-400 dark:text-zinc-500 text-xs mt-0.5">
+                          Min order ₹{minVal.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </p>
                       )}
                     </div>
                   </div>
                   {isApplied ? (
                     <span className="text-green-600 dark:text-green-400 text-xs font-bold shrink-0 mt-0.5">Applied ✓</span>
                   ) : (
-                    <button onClick={() => unlocked && handleApplyCode(c.code)} disabled={!unlocked || !!appliedCoupon || loading === c.code}
+                    <button onClick={() => unlocked && handleApplyCode(c.code)}
+                      disabled={!unlocked || !!appliedCoupon || loading === c.code}
                       className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-lg transition-colors ${unlocked && !appliedCoupon ? 'bg-accent/10 text-accent hover:bg-accent hover:text-white border border-accent/20' : 'text-gray-300 dark:text-zinc-600 cursor-not-allowed'}`}>
                       {loading === c.code ? <Loader className="animate-spin w-3 h-3" /> : 'Apply'}
                     </button>
@@ -307,6 +319,7 @@ const CheckoutPanel = ({
   const discount   = couponData ? parseFloat(couponData.discount_amount) : 0;
   const grandTotal = subtotal - discount;
   const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
+  const isRazorpay = paymentMethod === 'razorpay';
 
   return (
     <div className="flex flex-col xl:flex-row gap-8 items-start">
@@ -314,21 +327,26 @@ const CheckoutPanel = ({
         {/* Shipping */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4"><Truck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Shipping Address</h2></div>
-          {addresses.length === 0 ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved. <a href="/dashboard" className="text-accent underline">Add one in Dashboard.</a></p>
+          {addresses.length === 0
+            ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved. <a href="/dashboard" className="text-accent underline">Add one in Dashboard.</a></p>
             : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="shipping" selected={shippingId === addr.id} onSelect={onShippingSelect} />)}</div>}
         </div>
+
         {/* Billing */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4"><Building className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Billing Address</h2></div>
-          {addresses.length === 0 ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved.</p>
+          {addresses.length === 0
+            ? <p className="text-gray-500 dark:text-zinc-400 text-sm">No addresses saved.</p>
             : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(addr => <AddressCard key={addr.id} addr={addr} type="billing" selected={billingId === addr.id} onSelect={onBillingSelect} />)}</div>}
         </div>
+
         {/* Payment */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4"><ShieldCheck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Payment Method</h2></div>
           <div className="space-y-3">
             {PAYMENT_OPTIONS.map(opt => {
-              const Icon = opt.icon; const active = paymentMethod === opt.value;
+              const Icon = opt.icon;
+              const active = paymentMethod === opt.value;
               return (
                 <label key={opt.value} onClick={() => onPaymentSelect(opt.value)}
                   className={`flex items-center gap-4 cursor-pointer rounded-xl border p-4 transition-all ${active ? 'border-accent/60 bg-accent/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-800 hover:border-gray-300 dark:hover:border-white/20'}`}>
@@ -355,31 +373,50 @@ const CheckoutPanel = ({
             <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Order Summary</h2>
           </div>
           <div className="space-y-3 text-sm">
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400"><span>SKU Lines</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{items.length}</span></div>
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400"><span>Total Units</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{totalUnits}</span></div>
-            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5"><span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span></div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400">
+              <span>SKU Lines</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{items.length}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400">
+              <span>Total Units</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">{totalUnits}</span>
+            </div>
+            <div className="flex items-center justify-between text-gray-500 dark:text-zinc-400 pt-2 border-t border-gray-100 dark:border-white/5">
+              <span>Subtotal</span><span className="text-gray-900 dark:text-zinc-100 font-semibold">₹{subtotal.toFixed(2)}</span>
+            </div>
             {couponData && discount > 0 && (
               <div className="flex items-center justify-between text-green-600 dark:text-green-400 font-semibold">
-                <span>Discount ({couponData.coupon_code})</span><span>−₹{discount.toFixed(2)}</span>
+                <span>Discount ({couponData.coupon_code})</span>
+                <span>−₹{discount.toFixed(2)}</span>
               </div>
             )}
           </div>
-          <AvailableOffers coupons={availableCoupons} cartTotal={subtotal} appliedCoupon={couponData} onApply={onCouponApply} onRemove={onCouponRemove} />
+
+          <AvailableOffers coupons={availableCoupons} cartTotal={subtotal}
+            appliedCoupon={couponData} onApply={onCouponApply} onRemove={onCouponRemove} />
+
           <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
             <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
             <span className="text-gray-900 dark:text-zinc-100 font-extrabold text-xl">₹{grandTotal.toFixed(2)}</span>
           </div>
+
           {paymentMethod && (
             <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-zinc-400 bg-gray-50 dark:bg-white/5 rounded-xl px-3 py-2">
               <ShieldCheck className="w-3.5 h-3.5 text-accent" />
               {PAYMENT_OPTIONS.find(o => o.value === paymentMethod)?.label}
             </div>
           )}
+
           <button onClick={onCheckout} disabled={checking}
             className="w-full flex items-center justify-center gap-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3.5 rounded-xl transition-colors text-sm">
-            {checking ? <><Loader className="animate-spin w-4 h-4" /> Placing Order…</> : <><PackageCheck className="w-4 h-4" /> Place Wholesale Order <ArrowRight className="w-4 h-4" /></>}
+            {checking
+              ? <><Loader className="animate-spin w-4 h-4" /> {isRazorpay ? 'Opening Payment…' : 'Placing Order…'}</>
+              : isRazorpay
+                ? <><CreditCard className="w-4 h-4" /> Pay Now ₹{grandTotal.toFixed(2)}</>
+                : <><PackageCheck className="w-4 h-4" /> Place Wholesale Order <ArrowRight className="w-4 h-4" /></>
+            }
           </button>
-          <p className="text-gray-400 dark:text-zinc-600 text-xs text-center leading-relaxed">By submitting, you confirm this is a B2B bulk purchase order.</p>
+          <p className="text-gray-400 dark:text-zinc-600 text-xs text-center leading-relaxed">
+            By submitting, you confirm this is a B2B bulk purchase order.
+          </p>
         </div>
       </div>
     </div>
@@ -415,9 +452,9 @@ const Cart = () => {
       setItems(cartRes.data?.items ?? []);
       setAddresses(addrRes.data ?? []);
       setAvailableCoupons(couponRes.data?.results ?? couponRes.data ?? []);
-      const addrs      = addrRes.data ?? [];
-      const defShip    = addrs.find(a => a.is_default_shipping);
-      const defBill    = addrs.find(a => a.is_default_billing);
+      const addrs   = addrRes.data ?? [];
+      const defShip = addrs.find(a => a.is_default_shipping);
+      const defBill = addrs.find(a => a.is_default_billing);
       if (defShip) setShippingId(defShip.id);
       if (defBill) setBillingId(defBill.id);
     }).catch(() => showToast('Failed to load cart.', 'error'))
@@ -436,8 +473,92 @@ const Cart = () => {
     setCouponData(null);
   }, [scheduleUpdate]);
 
-  const handleCheckout = async () => {
-    if (checking) return;
+  // ── Razorpay payment flow ──────────────────────────────────────────────────
+  const handleRazorpayCheckout = async () => {
+    if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
+    if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
+
+    setChecking(true);
+
+    // Load Razorpay script
+    const scriptLoaded = await loadRazorpayScript();
+    if (!scriptLoaded) {
+      showToast('Failed to load payment gateway. Check your connection.', 'error');
+      setChecking(false);
+      return;
+    }
+
+    // Create Razorpay order on backend
+    let orderData;
+    try {
+      const res = await api.post('orders/razorpay/create/', {
+        shipping_address_id: shippingId,
+        billing_address_id:  billingId,
+        coupon_code:         couponData?.coupon_code || '',
+      });
+      orderData = res.data;
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to initiate payment.', 'error');
+      setChecking(false);
+      return;
+    }
+
+    // Open Razorpay checkout modal
+    const options = {
+      key:         orderData.key_id,
+      amount:      orderData.amount,
+      currency:    orderData.currency,
+      name:        'Pronoun Jeans',
+      description: 'B2B Wholesale Order',
+      order_id:    orderData.razorpay_order_id,
+      prefill: {
+        name:    orderData.name,
+        email:   orderData.email,
+        contact: orderData.contact,
+      },
+      theme: { color: '#dc2626' },
+
+      handler: async (response) => {
+        // Payment successful — verify on backend
+        try {
+          await api.post('orders/razorpay/verify/', {
+            razorpay_order_id:   response.razorpay_order_id,
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature:  response.razorpay_signature,
+          });
+          setItems([]);
+          setCouponData(null);
+          setSuccess(true);
+          showToast('Payment successful! Order confirmed.', 'success');
+          setTimeout(() => navigate('/history'), 2400);
+        } catch (err) {
+          showToast(
+            err.response?.data?.error || 'Payment received but verification failed. Please contact support.',
+            'error'
+          );
+        } finally {
+          setChecking(false);
+        }
+      },
+
+      modal: {
+        ondismiss: () => {
+          showToast('Payment cancelled.', 'error');
+          setChecking(false);
+        },
+      },
+    };
+
+    const rzp = new window.Razorpay(options);
+    rzp.on('payment.failed', (response) => {
+      showToast(`Payment failed: ${response.error.description}`, 'error');
+      setChecking(false);
+    });
+    rzp.open();
+  };
+
+  // ── Non-Razorpay checkout ─────────────────────────────────────────────────
+  const handleStandardCheckout = async () => {
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
     setChecking(true);
@@ -452,13 +573,17 @@ const Cart = () => {
       setCouponData(null);
       setSuccess(true);
       showToast('Bulk order placed successfully!', 'success');
-      setTimeout(() => navigate(paymentMethod === 'razorpay' ? '/payment' : '/dashboard'), 2400);
+      setTimeout(() => navigate('/history'), 2400);
     } catch (err) {
       showToast(err.response?.data?.error || err.response?.data?.detail || 'Checkout failed.', 'error');
     } finally {
       setChecking(false);
     }
   };
+
+  const handleCheckout = paymentMethod === 'razorpay'
+    ? handleRazorpayCheckout
+    : handleStandardCheckout;
 
   return (
     <div className="bg-gray-50 dark:bg-zinc-950 min-h-screen p-6 lg:p-12">
@@ -478,8 +603,10 @@ const Cart = () => {
             <div className="w-20 h-20 rounded-full bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 flex items-center justify-center">
               <PackageCheck className="w-9 h-9 text-green-600 dark:text-green-400" />
             </div>
-            <p className="text-gray-900 dark:text-zinc-100 text-2xl font-bold">Order Placed!</p>
-            <p className="text-gray-500 dark:text-zinc-400 text-sm">{paymentMethod === 'razorpay' ? 'Redirecting to payment…' : 'Redirecting to your dashboard…'}</p>
+            <p className="text-gray-900 dark:text-zinc-100 text-2xl font-bold">
+              {paymentMethod === 'razorpay' ? 'Payment Successful!' : 'Order Placed!'}
+            </p>
+            <p className="text-gray-500 dark:text-zinc-400 text-sm">Redirecting to your orders…</p>
             <Loader className="animate-spin text-accent w-5 h-5 mt-1" />
           </div>
         )}
@@ -531,8 +658,7 @@ const Cart = () => {
                     </div>
                     <p className="text-gray-400 dark:text-zinc-500 text-xs font-mono mb-1">{item.variation?.sku}</p>
                     <div className="flex items-center gap-2 mb-3 text-xs text-gray-500 dark:text-zinc-400">
-                      <span>{item.variation?.size}</span>
-                      <span>/</span>
+                      <span>{item.variation?.size}</span><span>/</span>
                       <ColorSwatch hex={colorHex} name={colorName} />
                     </div>
                     <div className="flex items-center justify-between">
