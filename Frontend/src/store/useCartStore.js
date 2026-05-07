@@ -13,7 +13,7 @@ export const useCartStore = create((set) => ({
       const total = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
       set({ cartCount: count, cartTotal: total });
     } catch {
-      // silently fail — cart may not exist yet
+      // silently fail
     }
   },
 }));

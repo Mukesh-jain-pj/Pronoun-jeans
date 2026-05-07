@@ -3,18 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import {
   ShoppingCart, PackageCheck, Loader, AlertCircle, CheckCircle2,
-  ArrowRight, Tag, ReceiptText, Plus, Minus, Trash2,
+  Tag, ReceiptText, Plus, Minus, Trash2,
   Truck, CreditCard, Building, ShieldCheck, Smartphone,
   X, Lock, Unlock, ChevronDown, ChevronUp, Copy, Check,
 } from 'lucide-react';
 import api from '../api/axios';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
+import { useCartStore } from '../store/useCartStore';
 
 const UPI_ID        = 'pronoun@kotak';
 const BUSINESS_NAME = 'Pronoun Jeans';
-
-// ── Razorpay loader ───────────────────────────────────────────────────────────
 
 const loadRazorpayScript = () =>
   new Promise((resolve) => {
@@ -26,41 +23,21 @@ const loadRazorpayScript = () =>
     document.body.appendChild(s);
   });
 
-// ── GST Math ──────────────────────────────────────────────────────────────────
-//
-// All prices in the system are GST-inclusive (5% baked in).
-// Rule:
-//   base      = subtotal * 0.95       (GST-exclusive portion)
-//   gst       = subtotal * 0.05       (GST portion — fixed, never discounted)
-//   discount  = base * discountPct    (discount only on base)
-//   discBase  = base - discount
-//   grandTotal = discBase + gst
-//
-// For UPI full payment, an extra 1% is also applied on the base only.
-//
-// discountPct is the combined percentage expressed as a decimal
-// e.g. 2% coupon + 1% UPI = 0.03
-
 const calcGST = (subtotal, couponPct = 0, upiDiscPct = 0) => {
-  const r2    = (n) => Math.round(n * 100) / 100;
-  const base  = r2(subtotal * 0.95);
-  const gst   = r2(subtotal * 0.05);
-  const totalDiscPct  = couponPct + upiDiscPct;          // e.g. 0.02 + 0.01 = 0.03
-  const couponDisc    = r2(base * couponPct);
-  const upiDisc       = r2(base * upiDiscPct);
-  const totalDisc     = r2(base * totalDiscPct);
-  const discBase      = r2(base - totalDisc);
-  const grandTotal    = r2(discBase + gst);
+  const r2         = (n) => Math.round(n * 100) / 100;
+  const base       = r2(subtotal * 0.95);
+  const gst        = r2(subtotal * 0.05);
+  const couponDisc = r2(base * couponPct);
+  const upiDisc    = r2(base * upiDiscPct);
+  const totalDisc  = r2(base * (couponPct + upiDiscPct));
+  const discBase   = r2(base - totalDisc);
+  const grandTotal = r2(discBase + gst);
   return { base, gst, couponDisc, upiDisc, totalDisc, discBase, grandTotal };
 };
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-const fmt        = (n) => parseFloat(n || 0).toFixed(2);
+const fmt         = (n) => parseFloat(n || 0).toFixed(2);
 const buildUpiUri = (amount, note = 'B2B Order') =>
   `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(BUSINESS_NAME)}&am=${fmt(amount)}&cu=INR&tn=${encodeURIComponent(note)}`;
-
-// ── Color Swatch ──────────────────────────────────────────────────────────────
 
 const ColorSwatch = ({ hex, name }) => (
   <span className="inline-flex items-center gap-1.5">
@@ -69,8 +46,6 @@ const ColorSwatch = ({ hex, name }) => (
     <span>{name}</span>
   </span>
 );
-
-// ── Toast ─────────────────────────────────────────────────────────────────────
 
 const Toast = ({ message, type = 'success', onDone }) => {
   useEffect(() => { const t = setTimeout(onDone, 3200); return () => clearTimeout(t); }, [onDone]);
@@ -85,8 +60,6 @@ const Toast = ({ message, type = 'success', onDone }) => {
     </div>
   );
 };
-
-// ── Qty Control ───────────────────────────────────────────────────────────────
 
 const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange }) => (
   <div className="flex items-center rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 w-fit">
@@ -108,22 +81,25 @@ const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange })
   </div>
 );
 
-const useQtyUpdate = (showToast) => {
+const useQtyUpdate = (showToast, fetchCart) => {
   const timerRef = useRef({});
   const [saving, setSaving] = useState({});
   const scheduleUpdate = useCallback((cartItemId, newQty) => {
     clearTimeout(timerRef.current[cartItemId]);
     timerRef.current[cartItemId] = setTimeout(async () => {
       setSaving(s => ({ ...s, [cartItemId]: true }));
-      try { await api.patch(`orders/cart/items/${cartItemId}/`, { quantity: newQty }); }
-      catch (err) { showToast(err.response?.data?.error || 'Failed to update quantity.', 'error'); }
-      finally { setSaving(s => ({ ...s, [cartItemId]: false })); }
+      try {
+        await api.patch(`orders/cart/items/${cartItemId}/`, { quantity: newQty });
+        fetchCart();
+      } catch (err) {
+        showToast(err.response?.data?.error || 'Failed to update quantity.', 'error');
+      } finally {
+        setSaving(s => ({ ...s, [cartItemId]: false }));
+      }
     }, 600);
-  }, [showToast]);
+  }, [showToast, fetchCart]);
   return { saving, scheduleUpdate };
 };
-
-// ── Cart Row ──────────────────────────────────────────────────────────────────
 
 const CartRow = ({ item, index, onQtyChange, saving }) => {
   const { id, variation, quantity } = item;
@@ -155,8 +131,6 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
   );
 };
 
-// ── Address Card ──────────────────────────────────────────────────────────────
-
 const AddressCard = ({ addr, selected, onSelect, type }) => {
   const Icon = type === 'shipping' ? Truck : Building;
   return (
@@ -177,8 +151,6 @@ const AddressCard = ({ addr, selected, onSelect, type }) => {
     </div>
   );
 };
-
-// ── Available Offers ──────────────────────────────────────────────────────────
 
 const couponLabel = (c) => `${c.discount_value}% Off`;
 
@@ -290,25 +262,14 @@ const AvailableOffers = ({ coupons, subtotal, appliedCoupon, onApply, onRemove }
   );
 };
 
-// ── Order Summary ─────────────────────────────────────────────────────────────
-// Shows the full GST breakdown:
-//   Subtotal (inclusive)
-//   ├── Base (95%)       ₹X
-//   │   └── Discount     −₹Y  (coupon on base)
-//   │   └── UPI Disc     −₹Z  (extra 1% on base, if full UPI)
-//   │   = Discounted Base ₹W
-//   ├── GST (5%)         ₹G   (unchanged — discount never touches GST)
-//   Grand Total          ₹T
-
 const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onCouponApply, onCouponRemove }) => {
-  const subtotal    = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
-  const couponPct   = couponData ? parseFloat(couponData.discount_value) / 100 : 0;
-  const totalUnits  = items.reduce((s, i) => s + i.quantity, 0);
+  const subtotal   = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
+  const couponPct  = couponData ? parseFloat(couponData.discount_value) / 100 : 0;
+  const totalUnits = items.reduce((s, i) => s + i.quantity, 0);
 
   const { base, gst, couponDisc, upiDisc, totalDisc, discBase, grandTotal } =
     calcGST(subtotal, couponPct, upiDiscPct);
 
-  // Store coupon_disc_amount on couponData so AvailableOffers can display it
   if (couponData && couponData.coupon_disc_amount === undefined) {
     couponData.coupon_disc_amount = couponDisc;
   }
@@ -320,7 +281,6 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
         <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Order Summary</h2>
       </div>
 
-      {/* Meta */}
       <div className="space-y-1.5 text-sm">
         <div className="flex justify-between text-gray-500 dark:text-zinc-400">
           <span>SKU Lines</span><span className="font-semibold text-gray-900 dark:text-zinc-100">{items.length}</span>
@@ -330,52 +290,39 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
         </div>
       </div>
 
-      {/* GST Breakdown */}
       <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-3.5 space-y-2 text-sm border border-gray-100 dark:border-white/5">
-        {/* Subtotal inclusive */}
         <div className="flex justify-between text-gray-700 dark:text-zinc-300">
           <span className="font-semibold">Subtotal (incl. GST)</span>
           <span className="font-semibold">₹{fmt(subtotal)}</span>
         </div>
-
         <div className="border-t border-gray-200 dark:border-white/10 pt-2 space-y-1.5">
-          {/* Base 95% */}
           <div className="flex justify-between text-gray-500 dark:text-zinc-400">
             <span>Base (95%)</span><span>₹{fmt(base)}</span>
           </div>
-
-          {/* Coupon discount on base */}
           {couponDisc > 0 && (
             <div className="flex justify-between text-green-600 dark:text-green-400 font-semibold">
               <span>Coupon ({(couponPct * 100).toFixed(0)}% on base)</span>
               <span>−₹{fmt(couponDisc)}</span>
             </div>
           )}
-
-          {/* UPI 1% discount on base */}
           {upiDisc > 0 && (
             <div className="flex justify-between text-green-600 dark:text-green-400 font-semibold">
               <span>Full UPI (1% on base)</span>
               <span>−₹{fmt(upiDisc)}</span>
             </div>
           )}
-
-          {/* Discounted base */}
           {totalDisc > 0 && (
             <div className="flex justify-between text-gray-700 dark:text-zinc-300 border-t border-dashed border-gray-200 dark:border-white/10 pt-1.5">
               <span className="font-semibold">Discounted Base</span>
               <span className="font-semibold">₹{fmt(discBase)}</span>
             </div>
           )}
-
-          {/* GST — always on original full subtotal's 5% split */}
           <div className="flex justify-between text-gray-500 dark:text-zinc-400">
             <span>GST @ 5%</span><span>₹{fmt(gst)}</span>
           </div>
         </div>
       </div>
 
-      {/* Coupons */}
       <AvailableOffers
         coupons={availableCoupons}
         subtotal={subtotal}
@@ -384,7 +331,6 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
         onRemove={onCouponRemove}
       />
 
-      {/* Grand Total */}
       <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
         <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
         <span className="text-gray-900 dark:text-zinc-100 font-extrabold text-xl">₹{fmt(grandTotal)}</span>
@@ -398,8 +344,6 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
     </div>
   );
 };
-
-// ── Direct UPI Panel ──────────────────────────────────────────────────────────
 
 const DirectUPIPanel = ({
   subtotal, couponPct,
@@ -421,11 +365,7 @@ const DirectUPIPanel = ({
     ? Math.round((grandTotal - payableNow) * 100) / 100
     : 0;
 
-  const upiUri = buildUpiUri(
-    payableNow,
-    `Pronoun Jeans - ${paymentPlan === 'advance' ? '10% Advance' : 'Full Payment'}`
-  );
-
+  const upiUri  = buildUpiUri(payableNow, `Pronoun Jeans - ${paymentPlan === 'advance' ? '10% Advance' : 'Full Payment'}`);
   const isMobile = /android|iphone|ipad|ipod/i.test(navigator.userAgent);
 
   const handleCopyUpi = () => {
@@ -436,13 +376,12 @@ const DirectUPIPanel = ({
 
   return (
     <div className="space-y-5">
-      {/* Plan toggle */}
       <div>
         <p className="text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest mb-3">Choose Payment Plan</p>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { value: 'advance', label: '10% Advance',   sub: 'Pay 10% now, rest on delivery' },
-            { value: 'full',    label: 'Full Payment',   sub: 'Extra 1% off on base price'    },
+            { value: 'advance', label: '10% Advance', sub: 'Pay 10% now, rest on delivery' },
+            { value: 'full',    label: 'Full Payment', sub: 'Extra 1% off on base price'   },
           ].map(opt => (
             <label key={opt.value} onClick={() => setPaymentPlan(opt.value)}
               className={`cursor-pointer rounded-xl border p-3.5 transition-all ${paymentPlan === opt.value ? 'border-accent bg-accent/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 hover:border-gray-300'}`}>
@@ -458,7 +397,6 @@ const DirectUPIPanel = ({
         </div>
       </div>
 
-      {/* Pricing breakdown for UPI */}
       <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2 text-sm border border-gray-100 dark:border-white/5">
         {couponDisc > 0 && (
           <div className="flex justify-between text-green-600 font-semibold">
@@ -491,7 +429,6 @@ const DirectUPIPanel = ({
         </div>
       </div>
 
-      {/* QR Code */}
       <div className="flex flex-col items-center gap-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-2xl p-6">
         <p className="text-gray-700 dark:text-zinc-300 text-sm font-bold">Scan to Pay ₹{fmt(payableNow)}</p>
         <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -515,7 +452,6 @@ const DirectUPIPanel = ({
         )}
       </div>
 
-      {/* UTR */}
       <div className="space-y-2">
         <label className="block text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest">
           UPI Transaction Reference (UTR) *
@@ -535,8 +471,6 @@ const DirectUPIPanel = ({
   );
 };
 
-// ── Checkout Panel ────────────────────────────────────────────────────────────
-
 const CheckoutPanel = ({
   items, addresses, shippingId, billingId,
   onShippingSelect, onBillingSelect,
@@ -546,9 +480,8 @@ const CheckoutPanel = ({
   onRazorpayCheckout, razorpayChecking,
 }) => {
   const [activeMethod, setActiveMethod] = useState('upi');
-
-  const subtotal  = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
-  const couponPct = couponData ? parseFloat(couponData.discount_value) / 100 : 0;
+  const subtotal   = items.reduce((s, i) => s + parseFloat(i.variation?.b2b_price ?? 0) * i.quantity, 0);
+  const couponPct  = couponData ? parseFloat(couponData.discount_value) / 100 : 0;
   const upiDiscPct = activeMethod === 'upi' && paymentPlan === 'full' ? 0.01 : 0;
   const { grandTotal } = calcGST(subtotal, couponPct, upiDiscPct);
 
@@ -556,7 +489,6 @@ const CheckoutPanel = ({
     <div className="flex flex-col xl:flex-row gap-8 items-start">
       <div className="flex-1 min-w-0 space-y-6">
 
-        {/* Shipping */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4"><Truck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Shipping Address</h2></div>
           {addresses.length === 0
@@ -564,7 +496,6 @@ const CheckoutPanel = ({
             : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(a => <AddressCard key={a.id} addr={a} type="shipping" selected={shippingId === a.id} onSelect={onShippingSelect} />)}</div>}
         </div>
 
-        {/* Billing */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-4"><Building className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Billing Address</h2></div>
           {addresses.length === 0
@@ -572,14 +503,12 @@ const CheckoutPanel = ({
             : <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{addresses.map(a => <AddressCard key={a.id} addr={a} type="billing" selected={billingId === a.id} onSelect={onBillingSelect} />)}</div>}
         </div>
 
-        {/* Payment */}
         <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm">
           <div className="flex items-center gap-2 mb-5"><ShieldCheck className="w-5 h-5 text-accent" /><h2 className="text-gray-900 dark:text-zinc-100 font-bold">Payment Method</h2></div>
-
           <div className="flex gap-3 mb-6">
             {[
-              { key: 'upi',      label: 'Direct UPI',  sub: 'Zero fees · Instant'       },
-              { key: 'razorpay', label: 'Razorpay',    sub: 'Card / UPI / NetBanking'   },
+              { key: 'upi',      label: 'Direct UPI', sub: 'Zero fees · Instant'     },
+              { key: 'razorpay', label: 'Razorpay',   sub: 'Card / UPI / NetBanking' },
             ].map(m => (
               <button key={m.key} onClick={() => setActiveMethod(m.key)}
                 className={`flex-1 rounded-xl border p-3 text-left transition-all ${activeMethod === m.key ? 'border-accent bg-accent/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-800 hover:border-gray-300'}`}>
@@ -612,7 +541,6 @@ const CheckoutPanel = ({
         </div>
       </div>
 
-      {/* Order Summary sidebar */}
       <div className="w-full xl:w-80 shrink-0">
         <OrderSummaryCard
           items={items}
@@ -627,10 +555,10 @@ const CheckoutPanel = ({
   );
 };
 
-// ── Main Cart ─────────────────────────────────────────────────────────────────
-
 const Cart = () => {
-  const navigate = useNavigate();
+  const navigate   = useNavigate();
+  const fetchCart  = useCartStore((s) => s.fetchCart);
+
   const [items, setItems]                       = useState([]);
   const [addresses, setAddresses]               = useState([]);
   const [availableCoupons, setAvailableCoupons] = useState([]);
@@ -648,7 +576,7 @@ const Cart = () => {
 
   const showToast  = useCallback((message, type = 'success') => setToast({ message, type }), []);
   const clearToast = useCallback(() => setToast(null), []);
-  const { saving, scheduleUpdate } = useQtyUpdate(showToast);
+  const { saving, scheduleUpdate } = useQtyUpdate(showToast, fetchCart);
 
   useEffect(() => {
     Promise.all([
@@ -659,7 +587,7 @@ const Cart = () => {
       setItems(cartRes.data?.items ?? []);
       setAddresses(addrRes.data ?? []);
       setAvailableCoupons(couponRes.data?.results ?? couponRes.data ?? []);
-      const addrs = addrRes.data ?? [];
+      const addrs   = addrRes.data ?? [];
       const defShip = addrs.find(a => a.is_default_shipping);
       const defBill = addrs.find(a => a.is_default_billing);
       if (defShip) setShippingId(defShip.id);
@@ -694,6 +622,7 @@ const Cart = () => {
         coupon_code:         couponData?.coupon_code || '',
       });
       setItems([]); setCouponData(null); setUtrNumber('');
+      fetchCart();
       setSuccess(true);
       setSuccessMsg(`Order #${res.data.order_id} placed! We'll verify your payment within 2 hours.`);
       setTimeout(() => navigate('/history'), 3500);
@@ -716,7 +645,11 @@ const Cart = () => {
         coupon_code:         couponData?.coupon_code || '',
       });
       orderData = res.data;
-    } catch (err) { showToast(err.response?.data?.error || 'Failed to initiate payment.', 'error'); setRazorpayChecking(false); return; }
+    } catch (err) {
+      showToast(err.response?.data?.error || 'Failed to initiate payment.', 'error');
+      setRazorpayChecking(false);
+      return;
+    }
 
     const options = {
       key: orderData.key_id, amount: orderData.amount, currency: orderData.currency,
@@ -732,10 +665,13 @@ const Cart = () => {
             razorpay_signature:  response.razorpay_signature,
           });
           setItems([]); setCouponData(null);
-          setSuccess(true); setSuccessMsg('Payment successful! Order confirmed.');
+          fetchCart();
+          setSuccess(true);
+          setSuccessMsg('Payment successful! Order confirmed.');
           setTimeout(() => navigate('/history'), 2400);
-        } catch (err) { showToast(err.response?.data?.error || 'Verification failed.', 'error'); }
-        finally { setRazorpayChecking(false); }
+        } catch (err) {
+          showToast(err.response?.data?.error || 'Verification failed.', 'error');
+        } finally { setRazorpayChecking(false); }
       },
       modal: { ondismiss: () => { showToast('Payment cancelled.', 'error'); setRazorpayChecking(false); } },
     };
@@ -780,13 +716,14 @@ const Cart = () => {
               <ShoppingCart className="w-9 h-9 text-gray-400" />
             </div>
             <p className="text-gray-900 dark:text-zinc-100 text-xl font-bold">Your cart is empty</p>
-            <button onClick={() => navigate('/catalog')} className="mt-2 bg-accent hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm">Browse Catalog</button>
+            <button onClick={() => navigate('/catalog')} className="mt-2 bg-accent hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm">
+              Browse Catalog
+            </button>
           </div>
         )}
 
         {!success && !loading && items.length > 0 && (
           <div className="space-y-8">
-            {/* Desktop table */}
             <div className="hidden md:block bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
               <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5">
                 <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Cart Items</h2>
@@ -813,7 +750,6 @@ const Cart = () => {
               </div>
             </div>
 
-            {/* Mobile cards */}
             <div className="md:hidden space-y-3">
               {items.map(item => (
                 <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
