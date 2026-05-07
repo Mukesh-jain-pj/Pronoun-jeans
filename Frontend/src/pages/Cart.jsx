@@ -300,6 +300,13 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
           <span>Total Units</span><span className="font-semibold text-gray-900 dark:text-zinc-100">{totalUnits}</span>
         </div>
       </div>
+      <AvailableOffers
+        coupons={availableCoupons}
+        subtotal={subtotal}
+        appliedCoupon={couponData}
+        onApply={onCouponApply}
+        onRemove={onCouponRemove}
+      />
 
       <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-3.5 space-y-2 text-sm border border-gray-100 dark:border-white/5">
         <div className="flex justify-between text-gray-700 dark:text-zinc-300">
@@ -351,14 +358,6 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
           )}
         </div>
       </div>
-
-      <AvailableOffers
-        coupons={availableCoupons}
-        subtotal={subtotal}
-        appliedCoupon={couponData}
-        onApply={onCouponApply}
-        onRemove={onCouponRemove}
-      />
 
       <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
         <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
