@@ -2,8 +2,10 @@ import { create } from 'zustand';
 import api from '../api/axios';
 
 export const useCartStore = create((set) => ({
-  cartCount: 0,
-  cartTotal: 0,
+  cartCount:       0,
+  cartTotal:       0,
+  eligibleBuyers:  [],   // buyers who granted agent_can_order=true
+  selectedBuyerId: null, // agent's currently selected OOBO buyer
 
   fetchCart: async () => {
     try {
@@ -16,4 +18,16 @@ export const useCartStore = create((set) => ({
       // silently fail
     }
   },
+
+  fetchEligibleBuyers: async () => {
+    try {
+      const res = await api.get('orders/agent/eligible-buyers/');
+      set({ eligibleBuyers: res.data ?? [] });
+    } catch {
+      set({ eligibleBuyers: [] });
+    }
+  },
+
+  setSelectedBuyer: (buyerId) => set({ selectedBuyerId: buyerId }),
+  clearSelectedBuyer: ()      => set({ selectedBuyerId: null }),
 }));

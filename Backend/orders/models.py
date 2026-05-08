@@ -65,14 +65,14 @@ class Order(models.Model):
         CANCELLED            = 'CANCELLED', 'Cancelled'
 
     class PaymentMethod(models.TextChoices):
-        RAZORPAY   = 'razorpay',    'Razorpay'
-        DIRECT_UPI = 'direct_upi',  'Direct UPI'
+        RAZORPAY   = 'razorpay',   'Razorpay'
+        DIRECT_UPI = 'direct_upi', 'Direct UPI'
 
     class PaymentStatus(models.TextChoices):
-        PENDING  = 'pending',  'Pending'
-        PAID     = 'paid',     'Paid'
-        PARTIAL  = 'partial',  'Partial'
-        FAILED   = 'failed',   'Failed'
+        PENDING = 'pending', 'Pending'
+        PAID    = 'paid',    'Paid'
+        PARTIAL = 'partial', 'Partial'
+        FAILED  = 'failed',  'Failed'
 
     class PaymentPlan(models.TextChoices):
         ADVANCE = 'advance', '10% Advance'
@@ -86,32 +86,32 @@ class Order(models.Model):
     payment_status   = models.CharField(max_length=20, choices=PaymentStatus.choices, default=PaymentStatus.PENDING)
     total_amount     = models.DecimalField(max_digits=10, decimal_places=2)
 
-    # Coupon / discount
     coupon          = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, related_name='orders')
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    # Direct UPI fields
-    payment_plan      = models.CharField(max_length=10, choices=PaymentPlan.choices, null=True, blank=True)
-    upi_discount      = models.DecimalField(max_digits=10, decimal_places=2, default=0,
-                                            help_text='Extra 1% discount given for full UPI payment')
-    amount_paid       = models.DecimalField(max_digits=10, decimal_places=2, default=0,
-                                            help_text='Amount the buyer has paid / is expected to pay now')
-    balance_due       = models.DecimalField(max_digits=10, decimal_places=2, default=0,
-                                            help_text='Remaining balance after advance payment')
-    utr_number        = models.CharField(max_length=50, null=True, blank=True,
-                                         help_text='UPI Transaction Reference ID provided by buyer')
-    payment_verified  = models.BooleanField(default=False,
-                                            help_text='Admin toggles this after confirming payment in bank')
+    payment_plan     = models.CharField(max_length=10, choices=PaymentPlan.choices, null=True, blank=True)
+    upi_discount     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount_paid      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    balance_due      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    utr_number       = models.CharField(max_length=50, null=True, blank=True)
+    payment_verified = models.BooleanField(default=False)
 
-    # Razorpay transaction fields
     razorpay_order_id   = models.CharField(max_length=100, null=True, blank=True)
     razorpay_payment_id = models.CharField(max_length=100, null=True, blank=True)
     razorpay_signature  = models.CharField(max_length=255, null=True, blank=True)
 
-    # Tracking fields
     courier_name    = models.CharField(max_length=100, null=True, blank=True)
     tracking_number = models.CharField(max_length=100, null=True, blank=True)
     tracking_url    = models.URLField(null=True, blank=True)
+
+    # Feature 1: track if this order was placed by an agent on behalf of buyer
+    placed_by_agent = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name='orders_placed_on_behalf',
+        help_text='Set if an agent placed this order on behalf of the buyer.',
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -119,11 +119,15 @@ class Order(models.Model):
     @property
     def grand_total(self):
         from decimal import Decimal
-        subtotal = max(self.total_amount - Decimal(str(self.discount_amount)), Decimal('0'))
-        return max(subtotal - Decimal(str(self.upi_discount)), Decimal('0'))
+        subtotal     = max(self.total_amount - Decimal(str(self.discount_amount)), Decimal('0'))
+        after_upi    = max(subtotal - Decimal(str(self.upi_discount)), Decimal('0'))
+        # shipping
+        SHIPPING_FEE            = Decimal('300.00')
+        FREE_SHIPPING_THRESHOLD = Decimal('15000.00')
+        shipping = SHIPPING_FEE if after_upi < FREE_SHIPPING_THRESHOLD else Decimal('0.00')
+        return after_upi + shipping
 
     def save(self, *args, **kwargs):
-        # Auto-approve when admin verifies the UPI payment
         if self.payment_verified and self.status == self.Status.PENDING_VERIFICATION:
             self.status         = self.Status.APPROVED
             self.payment_status = self.PaymentStatus.PAID if self.balance_due == 0 else self.PaymentStatus.PARTIAL
@@ -154,7 +158,13 @@ class Commission(models.Model):
         related_name='commissions',
         limit_choices_to={'is_agent': True},
     )
-    order                 = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='commission')
+    # nullable to support bonus commissions not tied to a specific order
+    order                 = models.OneToOneField(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='commission',
+        null=True, blank=True,
+    )
     commission_percentage = models.DecimalField(max_digits=5, decimal_places=2)
     amount                = models.DecimalField(max_digits=10, decimal_places=2)
     status                = models.CharField(max_length=10, choices=Status.choices, default=Status.PENDING)
@@ -162,7 +172,9 @@ class Commission(models.Model):
     paid_at               = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
-        return f"Commission — {self.agent.email} | Order#{self.order.pk} | ₹{self.amount} [{self.status}]"
+        if self.order:
+            return f"Commission — {self.agent.email} | Order#{self.order.pk} | ₹{self.amount} [{self.status}]"
+        return f"Bonus Commission — {self.agent.email} | ₹{self.amount} [{self.status}]"
 
 
 class SampleOrder(models.Model):

@@ -1,6 +1,6 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
-from .models import CustomUser, AgentProfile, Address
+from .models import CustomUser, AgentProfile, AgentPayment, Address
 
 
 @admin.register(AgentProfile)
@@ -10,13 +10,26 @@ class AgentProfileAdmin(admin.ModelAdmin):
     ordering      = ['agent_code']
 
 
+@admin.register(AgentPayment)
+class AgentPaymentAdmin(admin.ModelAdmin):
+    list_display  = ['agent', 'amount', 'paid_on', 'utr_reference', 'created_at']
+    list_filter   = ['agent', 'paid_on']
+    search_fields = ['agent__email', 'utr_reference']
+    ordering      = ['-paid_on']
+    fieldsets = (
+        ('Payout Details', {
+            'fields': ('agent', 'amount', 'paid_on', 'utr_reference', 'notes'),
+        }),
+    )
+
+
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     list_display  = [
         'email', 'company_name', 'phone_number', 'gst_number',
-        'is_verified_b2b', 'is_agent', 'assigned_agent', 'is_staff', 'date_joined',
+        'is_verified_b2b', 'is_agent', 'agent_can_order', 'assigned_agent', 'is_staff', 'date_joined',
     ]
-    list_filter   = ['is_verified_b2b', 'is_agent', 'is_staff', 'is_active']
+    list_filter   = ['is_verified_b2b', 'is_agent', 'is_staff', 'is_active', 'agent_can_order']
     search_fields = ['email', 'company_name', 'gst_number', 'phone_number']
     ordering      = ['-date_joined']
 
@@ -25,8 +38,12 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('company_name', 'gst_number', 'phone_number', 'is_verified_b2b'),
         }),
         ('Agent', {
-            'fields': ('is_agent', 'assigned_agent'),
-            'description': 'Set is_agent=True for agent accounts. Use assigned_agent to map a buyer to their agent.',
+            'fields': ('is_agent', 'assigned_agent', 'agent_can_order'),
+            'description': (
+                'Set is_agent=True for agent accounts. '
+                'Use assigned_agent to map a buyer to their agent. '
+                'agent_can_order allows the agent to checkout on behalf of this buyer.'
+            ),
         }),
     )
 
@@ -35,7 +52,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('email', 'company_name', 'gst_number', 'phone_number', 'is_verified_b2b'),
         }),
         ('Agent', {
-            'fields': ('is_agent', 'assigned_agent'),
+            'fields': ('is_agent', 'assigned_agent', 'agent_can_order'),
         }),
     )
 

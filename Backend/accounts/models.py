@@ -17,6 +17,11 @@ class CustomUser(AbstractUser):
         related_name='assigned_buyers',
         limit_choices_to=Q(is_agent=True) | Q(agent_profile__isnull=False),
     )
+    # Feature 1: buyer explicitly grants agent permission to order on their behalf
+    agent_can_order  = models.BooleanField(
+        default=False,
+        help_text='Buyer grants their assigned agent permission to place orders on their behalf.',
+    )
 
     USERNAME_FIELD  = 'email'
     REQUIRED_FIELDS = ['username']
@@ -35,14 +40,40 @@ class AgentProfile(models.Model):
     agent_code            = models.CharField(max_length=20, unique=True)
     commission_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
 
+    # Feature 3: bonus threshold constants
+    BONUS_THRESHOLD = 500000   # ₹5,00,000
+    BONUS_AMOUNT    = 5000     # ₹5,000 flat bonus
+
     def save(self, *args, **kwargs):
         if not self.user.is_agent:
             CustomUser.objects.filter(pk=self.user.pk).update(is_agent=True)
-            self.user.is_agent = True 
+            self.user.is_agent = True
         super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.user.email} — {self.agent_code} ({self.commission_percentage}%)"
+
+
+class AgentPayment(models.Model):
+    """Admin manually logs payouts made to the agent."""
+    agent         = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name='payments_received',
+        limit_choices_to={'is_agent': True},
+    )
+    amount        = models.DecimalField(max_digits=10, decimal_places=2)
+    paid_on       = models.DateField()
+    utr_reference = models.CharField(max_length=100, blank=True,
+                                     help_text='Bank UTR / transaction reference for this payout')
+    notes         = models.TextField(blank=True)
+    created_at    = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-paid_on']
+
+    def __str__(self):
+        return f"Payment ₹{self.amount} → {self.agent.email} on {self.paid_on}"
 
 
 class Address(models.Model):

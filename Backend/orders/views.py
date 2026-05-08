@@ -12,19 +12,21 @@ from django.utils import timezone
 from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder, Coupon
 from .tracking_service import get_bigship_tracking
 from products.models import Product, ProductVariation
-from accounts.models import Address
+from accounts.models import Address, AgentPayment
 from accounts.views import IsAgent
 from .serializers import (
     CartSerializer, OrderSerializer, CommissionSerializer,
     SampleOrderSerializer, OrderTrackingUpdateSerializer, CouponSerializer,
 )
 
-SHIPPING_FEE              = Decimal('300.00')
-FREE_SHIPPING_THRESHOLD   = Decimal('15000.00')
-Q                         = Decimal('0.01')
+SHIPPING_FEE            = Decimal('300.00')
+FREE_SHIPPING_THRESHOLD = Decimal('15000.00')
+Q2                      = Decimal('0.01')
+
 
 def _r(value):
-    return value.quantize(Q, rounding=ROUND_HALF_UP)
+    return value.quantize(Q2, rounding=ROUND_HALF_UP)
+
 
 def calc_gst_split(subtotal, coupon_pct=Decimal('0'), upi_pct=Decimal('0')):
     base         = _r(subtotal * Decimal('0.95'))
@@ -37,15 +39,11 @@ def calc_gst_split(subtotal, coupon_pct=Decimal('0'), upi_pct=Decimal('0')):
     shipping     = SHIPPING_FEE if pre_shipping < FREE_SHIPPING_THRESHOLD else Decimal('0.00')
     grand_total  = _r(pre_shipping + shipping)
     return {
-        'base':         base,
-        'gst':          gst,
-        'coupon_disc':  coupon_disc,
-        'upi_disc':     upi_disc,
-        'total_disc':   total_disc,
-        'disc_base':    disc_base,
-        'pre_shipping': pre_shipping,
-        'shipping':     shipping,
-        'grand_total':  grand_total,
+        'base': base, 'gst': gst,
+        'coupon_disc': coupon_disc, 'upi_disc': upi_disc,
+        'total_disc': total_disc, 'disc_base': disc_base,
+        'pre_shipping': pre_shipping, 'shipping': shipping,
+        'grand_total': grand_total,
     }
 
 
@@ -84,6 +82,23 @@ def _resolve_coupon(coupon_code, subtotal):
     except Coupon.DoesNotExist:
         pass
     return None, Decimal('0')
+
+
+def _resolve_buyer(request, buyer_id=None):
+    """
+    Returns (buyer, placed_by_agent).
+    - If agent is making request and buyer_id provided: validate consent and return buyer
+    - Otherwise: return request.user as buyer
+    """
+    if request.user.is_agent and buyer_id:
+        try:
+            buyer = request.user.assigned_buyers.get(pk=buyer_id, is_verified_b2b=True)
+        except Exception:
+            return None, None, 'Buyer not found or not assigned to you.'
+        if not buyer.agent_can_order:
+            return None, None, 'This buyer has not granted you permission to place orders on their behalf.'
+        return buyer, request.user, None
+    return request.user, None, None
 
 
 # ── Cart ──────────────────────────────────────────────────────────────────────
@@ -203,7 +218,6 @@ class ApplyCouponView(APIView):
             return Response({'error': 'Your cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
         subtotal = _compute_subtotal(cart_items)
-
         if subtotal < coupon.min_order_value:
             return Response(
                 {'error': f'Minimum order value for this coupon is ₹{coupon.min_order_value}.'},
@@ -238,6 +252,7 @@ class DirectUPICheckoutView(APIView):
         shipping_address_id = request.data.get('shipping_address_id')
         billing_address_id  = request.data.get('billing_address_id')
         coupon_code         = request.data.get('coupon_code', '')
+        buyer_id            = request.data.get('buyer_id')   # Feature 1: OOBO
 
         if payment_plan not in ('advance', 'full'):
             return Response({'error': "payment_plan must be 'advance' or 'full'."},
@@ -246,8 +261,13 @@ class DirectUPICheckoutView(APIView):
             return Response({'error': 'Please enter your UPI Transaction Reference ID (UTR).'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        shipping_address = _resolve_address(shipping_address_id, request.user)
-        billing_address  = _resolve_address(billing_address_id,  request.user)
+        # Feature 1: resolve buyer (agent OOBO or self)
+        buyer, placed_by_agent, err = _resolve_buyer(request, buyer_id)
+        if err:
+            return Response({'error': err}, status=status.HTTP_403_FORBIDDEN)
+
+        shipping_address = _resolve_address(shipping_address_id, buyer)
+        billing_address  = _resolve_address(billing_address_id,  buyer)
         if not shipping_address:
             return Response({'error': 'Please select a shipping address.'}, status=status.HTTP_400_BAD_REQUEST)
         if not billing_address:
@@ -265,24 +285,23 @@ class DirectUPICheckoutView(APIView):
         subtotal           = _compute_subtotal(cart_items)
         coupon, coupon_pct = _resolve_coupon(coupon_code, subtotal)
         upi_pct            = Decimal('0.01') if payment_plan == 'full' else Decimal('0')
-
-        calc         = calc_gst_split(subtotal, coupon_pct=coupon_pct, upi_pct=upi_pct)
-        grand_total  = calc['grand_total']
-        pre_shipping = calc['pre_shipping']
-        shipping     = calc['shipping']
+        calc               = calc_gst_split(subtotal, coupon_pct=coupon_pct, upi_pct=upi_pct)
+        grand_total        = calc['grand_total']
+        pre_shipping       = calc['pre_shipping']
+        shipping           = calc['shipping']
 
         if payment_plan == 'advance':
-            # 10% of pre-shipping total + full shipping upfront
-            amount_paid = _r(pre_shipping * Decimal('0.10') + shipping)
-            balance_due = _r(pre_shipping - pre_shipping * Decimal('0.10'))
+            amount_paid        = _r(pre_shipping * Decimal('0.10') + shipping)
+            balance_due        = _r(pre_shipping - pre_shipping * Decimal('0.10'))
             payment_status_val = Order.PaymentStatus.PARTIAL
         else:
-            amount_paid = grand_total
-            balance_due = Decimal('0.00')
+            amount_paid        = grand_total
+            balance_due        = Decimal('0.00')
             payment_status_val = Order.PaymentStatus.PENDING
 
         order = Order.objects.create(
-            user             = request.user,
+            user             = buyer,
+            placed_by_agent  = placed_by_agent,
             shipping_address = shipping_address,
             billing_address  = billing_address,
             payment_method   = Order.PaymentMethod.DIRECT_UPI,
@@ -308,13 +327,13 @@ class DirectUPICheckoutView(APIView):
         cart.items.all().delete()
 
         return Response({
-            'order_id':     order.id,
-            'grand_total':  str(grand_total),
-            'amount_paid':  str(amount_paid),
-            'balance_due':  str(balance_due),
-            'shipping':     str(shipping),
-            'gst':          str(calc['gst']),
-            'message':      'Order placed. Pending payment verification.',
+            'order_id':    order.id,
+            'grand_total': str(grand_total),
+            'amount_paid': str(amount_paid),
+            'balance_due': str(balance_due),
+            'shipping':    str(shipping),
+            'gst':         str(calc['gst']),
+            'message':     'Order placed. Pending payment verification.',
         }, status=status.HTTP_201_CREATED)
 
 
@@ -328,9 +347,14 @@ class RazorpayCreateOrderView(APIView):
         shipping_address_id = request.data.get('shipping_address_id')
         billing_address_id  = request.data.get('billing_address_id')
         coupon_code         = request.data.get('coupon_code', '')
+        buyer_id            = request.data.get('buyer_id')   # Feature 1: OOBO
 
-        shipping_address = _resolve_address(shipping_address_id, request.user)
-        billing_address  = _resolve_address(billing_address_id,  request.user)
+        buyer, placed_by_agent, err = _resolve_buyer(request, buyer_id)
+        if err:
+            return Response({'error': err}, status=status.HTTP_403_FORBIDDEN)
+
+        shipping_address = _resolve_address(shipping_address_id, buyer)
+        billing_address  = _resolve_address(billing_address_id,  buyer)
         if not shipping_address:
             return Response({'error': 'Shipping address not found.'}, status=status.HTTP_400_BAD_REQUEST)
         if not billing_address:
@@ -362,7 +386,8 @@ class RazorpayCreateOrderView(APIView):
                             status=status.HTTP_502_BAD_GATEWAY)
 
         django_order = Order.objects.create(
-            user              = request.user,
+            user              = buyer,
+            placed_by_agent   = placed_by_agent,
             shipping_address  = shipping_address,
             billing_address   = billing_address,
             payment_method    = Order.PaymentMethod.RAZORPAY,
@@ -386,9 +411,9 @@ class RazorpayCreateOrderView(APIView):
             'currency':          'INR',
             'key_id':            settings.RAZORPAY_KEY_ID,
             'django_order_id':   django_order.id,
-            'name':              getattr(request.user, 'company_name', '') or request.user.email,
-            'email':             request.user.email,
-            'contact':           getattr(request.user, 'phone_number', '') or '',
+            'name':              getattr(buyer, 'company_name', '') or buyer.email,
+            'email':             buyer.email,
+            'contact':           getattr(buyer, 'phone_number', '') or '',
         }, status=status.HTTP_201_CREATED)
 
 
@@ -419,7 +444,7 @@ class RazorpayVerifyPaymentView(APIView):
             return Response({'error': f'Verification error: {str(e)}'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            order = Order.objects.get(razorpay_order_id=razorpay_order_id, user=request.user)
+            order = Order.objects.get(razorpay_order_id=razorpay_order_id)
         except Order.DoesNotExist:
             return Response({'error': 'Order not found.'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -474,18 +499,77 @@ class AgentCommissionsListView(generics.ListAPIView):
 
 
 class AgentLedgerSummaryView(APIView):
+    """
+    Feature 3: Full ledger summary including delivered sales,
+    commission earned, bonus, payments received, and outstanding balance.
+    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs           = Commission.objects.filter(agent=request.user)
-        total_earned = qs.aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
-        total_paid   = qs.filter(status=Commission.Status.PAID).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
-        balance_due  = qs.filter(status=Commission.Status.PENDING).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+        agent = request.user
+
+        # Total delivered sales value
+        total_delivered_sales = (
+            Order.objects.filter(
+                user__assigned_agent=agent,
+                status=Order.Status.DELIVERED,
+            ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0.00')
+        )
+
+        # Commission earned (excluding bonus rows which have order=None)
+        commission_qs     = Commission.objects.filter(agent=agent)
+        total_commission  = commission_qs.filter(
+            order__isnull=False
+        ).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+        # Bonus earned
+        bonus_earned = commission_qs.filter(
+            order__isnull=True
+        ).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
+
+        total_earned = _r(Decimal(str(total_commission)) + Decimal(str(bonus_earned)))
+
+        # Amount paid out by admin
+        from accounts.models import AgentPayment
+        total_paid_out = (
+            AgentPayment.objects.filter(agent=agent).aggregate(t=Sum('amount'))['t']
+            or Decimal('0.00')
+        )
+
+        outstanding_balance = _r(total_earned - Decimal(str(total_paid_out)))
+
+        # Bonus progress
+        BONUS_THRESHOLD = Decimal('500000.00')
+        BONUS_AMOUNT    = Decimal('5000.00')
+        progress_pct    = min(float(total_delivered_sales / BONUS_THRESHOLD * 100), 100)
+        bonus_unlocked  = total_delivered_sales >= BONUS_THRESHOLD
+
         return Response({
-            'total_earned': str(total_earned),
-            'total_paid':   str(total_paid),
-            'balance_due':  str(balance_due),
+            'total_delivered_sales': str(_r(Decimal(str(total_delivered_sales)))),
+            'total_commission':      str(_r(Decimal(str(total_commission)))),
+            'bonus_earned':          str(_r(Decimal(str(bonus_earned)))),
+            'total_earned':          str(total_earned),
+            'total_paid_out':        str(_r(Decimal(str(total_paid_out)))),
+            'outstanding_balance':   str(outstanding_balance),
+            'bonus_threshold':       str(BONUS_THRESHOLD),
+            'bonus_amount':          str(BONUS_AMOUNT),
+            'bonus_progress_pct':    round(progress_pct, 1),
+            'bonus_unlocked':        bonus_unlocked,
         })
+
+
+# ── Agent: Eligible Buyers for OOBO ──────────────────────────────────────────
+
+class AgentEligibleBuyersView(APIView):
+    """Returns buyers who have granted agent_can_order=True."""
+    permission_classes = [IsAgent]
+
+    def get(self, request):
+        buyers = request.user.assigned_buyers.filter(
+            is_verified_b2b=True,
+            agent_can_order=True,
+        ).values('id', 'email', 'company_name', 'phone_number')
+        return Response(list(buyers))
 
 
 # ── Agent: Sample Orders ──────────────────────────────────────────────────────

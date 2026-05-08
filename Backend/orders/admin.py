@@ -21,11 +21,11 @@ class OrderItemInline(admin.TabularInline):
 
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    list_display   = ['code', 'discount_type', 'discount_value', 'min_order_value', 'is_active', 'valid_from', 'valid_to']
-    list_filter    = ['is_active', 'discount_type']
-    search_fields  = ['code']
-    ordering       = ['-valid_to']
-    list_editable  = ['is_active']
+    list_display  = ['code', 'discount_type', 'discount_value', 'min_order_value', 'is_active', 'valid_from', 'valid_to']
+    list_filter   = ['is_active', 'discount_type']
+    search_fields = ['code']
+    ordering      = ['-valid_to']
+    list_editable = ['is_active']
     fieldsets = (
         ('Coupon Details', {
             'fields': ('code', 'discount_type', 'discount_value', 'min_order_value', 'is_active'),
@@ -44,7 +44,7 @@ class CartAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display    = ['id', 'user', 'status', 'total_amount', 'discount_amount', 'coupon', 'courier_name', 'tracking_number', 'created_at']
+    list_display    = ['id', 'user', 'placed_by_agent', 'status', 'total_amount', 'discount_amount', 'coupon', 'courier_name', 'tracking_number', 'created_at']
     list_filter     = ['status', 'payment_method', 'payment_status']
     search_fields   = ['user__email', 'tracking_number', 'courier_name']
     readonly_fields = ['total_amount', 'discount_amount', 'created_at', 'updated_at']
@@ -52,7 +52,7 @@ class OrderAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('Order Info', {
-            'fields': ('user', 'status', 'payment_method', 'payment_status', 'total_amount'),
+            'fields': ('user', 'placed_by_agent', 'status', 'payment_method', 'payment_status', 'total_amount'),
         }),
         ('Discount', {
             'fields': ('coupon', 'discount_amount'),
@@ -78,7 +78,7 @@ def mark_as_paid(modeladmin, request, queryset):
 
 @admin.register(Commission)
 class CommissionAdmin(admin.ModelAdmin):
-    list_display    = ['id', 'agent', 'order', 'buyer', 'amount', 'commission_percentage', 'status', 'created_at', 'paid_at']
+    list_display    = ['id', 'agent', 'order', 'is_bonus', 'buyer', 'amount', 'commission_percentage', 'status', 'created_at', 'paid_at']
     list_filter     = ['status', 'agent']
     search_fields   = ['agent__email', 'order__id', 'order__user__email']
     readonly_fields = ['created_at', 'amount', 'commission_percentage']
@@ -86,9 +86,14 @@ class CommissionAdmin(admin.ModelAdmin):
     ordering        = ['-created_at']
 
     def buyer(self, obj):
-        return obj.order.user.email
+        return obj.order.user.email if obj.order else '—'
     buyer.short_description = 'Buyer'
     buyer.admin_order_field = 'order__user__email'
+
+    def is_bonus(self, obj):
+        return obj.order is None
+    is_bonus.boolean = True
+    is_bonus.short_description = 'Bonus?'
 
 
 @admin.register(SampleOrder)

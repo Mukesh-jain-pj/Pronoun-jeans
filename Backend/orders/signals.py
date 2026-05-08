@@ -5,13 +5,12 @@ from .models import Order, Commission
 
 
 @receiver(post_save, sender=Order)
-def create_commission_on_order(sender, instance, created, **kwargs):
+def create_commission_on_delivered(sender, instance, created, **kwargs):
     """
-    Auto-create a Commission record when an order is placed.
-    Commission is calculated on the grand_total (after discount),
-    not the raw total_amount, so agents earn on what the buyer actually pays.
+    Feature 2: Commission is ONLY created/updated when an order reaches DELIVERED status.
+    Never fires on order creation or any other status change.
     """
-    if not created:
+    if instance.status != Order.Status.DELIVERED:
         return
 
     buyer = instance.user
@@ -28,13 +27,8 @@ def create_commission_on_order(sender, instance, created, **kwargs):
     if commission_pct <= 0:
         return
 
-    if hasattr(instance, 'commission'):
-        return
-
-    # Use grand_total (after coupon discount) as commission base
     base_amount = instance.grand_total
-
-    amount = (Decimal(str(commission_pct)) / Decimal('100')) * base_amount
+    amount      = (Decimal(str(commission_pct)) / Decimal('100')) * base_amount
 
     Commission.objects.get_or_create(
         order=instance,
@@ -45,3 +39,47 @@ def create_commission_on_order(sender, instance, created, **kwargs):
             'status':                Commission.Status.PENDING,
         },
     )
+
+    # Feature 3: check bonus threshold after each delivered commission
+    _check_and_award_bonus(agent, agent_profile)
+
+
+def _check_and_award_bonus(agent, agent_profile):
+    """
+    Award a flat ₹5,000 bonus commission if total delivered sales >= ₹5,00,000
+    and the bonus has not already been awarded.
+    """
+    from .models import Commission as C
+
+    BONUS_THRESHOLD = Decimal(str(AgentProfile.BONUS_THRESHOLD))
+    BONUS_AMOUNT    = Decimal(str(AgentProfile.BONUS_AMOUNT))
+
+    # Import here to avoid circular import
+    from accounts.models import AgentProfile
+
+    # Already awarded?
+    already_awarded = C.objects.filter(
+        agent=agent,
+        commission_percentage=Decimal('0.00'),
+        amount=BONUS_AMOUNT,
+    ).exists()
+    if already_awarded:
+        return
+
+    # Sum all delivered sales for this agent
+    from django.db.models import Sum
+    total_delivered = (
+        Order.objects.filter(
+            user__assigned_agent=agent,
+            status=Order.Status.DELIVERED,
+        ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0')
+    )
+
+    if total_delivered >= BONUS_THRESHOLD:
+        C.objects.create(
+            agent=agent,
+            order=None,          # bonus is not tied to a specific order
+            commission_percentage=Decimal('0.00'),
+            amount=BONUS_AMOUNT,
+            status=C.Status.PENDING,
+        )

@@ -12,10 +12,7 @@ from .serializers import (
 )
 
 
-# ── Custom Permissions ────────────────────────────────────────────────────────
-
 class IsAgent(BasePermission):
-    """Allows access only to authenticated users with is_agent=True."""
     message = 'Agent access required.'
 
     def has_permission(self, request, view):
@@ -26,21 +23,15 @@ class IsAgent(BasePermission):
         )
 
 
-# ── Auth ──────────────────────────────────────────────────────────────────────
-
 class B2BTokenObtainPairView(TokenObtainPairView):
     serializer_class = B2BTokenObtainPairSerializer
 
-
-# ── Registration ──────────────────────────────────────────────────────────────
 
 class RegisterView(generics.CreateAPIView):
     queryset           = CustomUser.objects.all()
     permission_classes = [AllowAny]
     serializer_class   = RegisterSerializer
 
-
-# ── Request Access (self-registration with optional agent code) ───────────────
 
 class RequestAccessView(APIView):
     permission_classes = [AllowAny]
@@ -49,15 +40,12 @@ class RequestAccessView(APIView):
         serializer = RequestAccessSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
         serializer.save()
         return Response(
             {'message': 'Access request submitted. Our team will contact you shortly.'},
             status=status.HTTP_201_CREATED,
         )
 
-
-# ── Buyer Profile ─────────────────────────────────────────────────────────────
 
 class ProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
@@ -66,8 +54,6 @@ class ProfileView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
-
-# ── Addresses ─────────────────────────────────────────────────────────────────
 
 class AddressListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -90,10 +76,50 @@ class AddressDetailView(generics.RetrieveUpdateDestroyAPIView):
         return Address.objects.filter(user=self.request.user)
 
 
-# ── Agent Views ───────────────────────────────────────────────────────────────
+class AgentCanOrderToggleView(APIView):
+    """
+    Feature 1: Buyer toggles permission for their assigned agent to place
+    orders on their behalf.
+    GET  /api/accounts/agent-can-order/  -- get current setting
+    PATCH /api/accounts/agent-can-order/ { "agent_can_order": true/false }
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            'agent_can_order': user.agent_can_order,
+            'assigned_agent':  user.assigned_agent.email if user.assigned_agent else None,
+        })
+
+    def patch(self, request):
+        user = request.user
+        if user.is_agent:
+            return Response(
+                {'error': 'Agents cannot toggle this setting.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if not user.assigned_agent:
+            return Response(
+                {'error': 'You do not have an assigned agent.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        value = request.data.get('agent_can_order')
+        if value is None or not isinstance(value, bool):
+            return Response(
+                {'error': 'agent_can_order must be true or false.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        user.agent_can_order = value
+        user.save(update_fields=['agent_can_order'])
+        return Response({
+            'agent_can_order': user.agent_can_order,
+            'assigned_agent':  user.assigned_agent.email,
+            'message': f"Agent ordering {'enabled' if value else 'disabled'} successfully.",
+        })
+
 
 class AgentBuyersListView(generics.ListAPIView):
-    """Returns all buyers assigned to the currently logged-in agent."""
     permission_classes = [IsAgent]
     serializer_class   = AgentBuyerSerializer
 
@@ -105,7 +131,6 @@ class AgentBuyersListView(generics.ListAPIView):
 
 
 class AgentBuyerDetailView(generics.RetrieveAPIView):
-    """Returns details of a single buyer assigned to the agent."""
     permission_classes = [IsAgent]
     serializer_class   = AgentBuyerSerializer
 
@@ -114,10 +139,6 @@ class AgentBuyerDetailView(generics.RetrieveAPIView):
 
 
 class AgentManualOnboardView(APIView):
-    """
-    Agent manually onboards a new verified B2B buyer.
-    Creates the user, sets a random temp password, auto-assigns to this agent.
-    """
     permission_classes = [IsAgent]
 
     def post(self, request):
