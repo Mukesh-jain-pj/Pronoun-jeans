@@ -25,10 +25,9 @@ const TrackingTimelineModal = ({ order, isOpen, onClose, isAgent = false }) => {
     setError('');
     setTimeline([]);
 
-    // Use agent endpoint if opened from agent portal, buyer endpoint otherwise
     const endpoint = isAgent
       ? `orders/agent/orders/${order.id}/track-timeline/`
-      : `orders/orders/${order.id}/track-timeline/`;
+      : `orders/${order.id}/track-timeline/`;
 
     api.get(endpoint)
       .then(res => setTimeline(res.data?.timeline ?? []))

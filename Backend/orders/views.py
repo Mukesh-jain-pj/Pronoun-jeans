@@ -1,3 +1,4 @@
+import logging
 import razorpay
 from decimal import Decimal, ROUND_HALF_UP
 from rest_framework.views import APIView
@@ -18,6 +19,8 @@ from .serializers import (
     CartSerializer, OrderSerializer, CommissionSerializer,
     SampleOrderSerializer, OrderTrackingUpdateSerializer, CouponSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 SHIPPING_FEE            = Decimal('300.00')
 FREE_SHIPPING_THRESHOLD = Decimal('15000.00')
@@ -85,11 +88,6 @@ def _resolve_coupon(coupon_code, subtotal):
 
 
 def _resolve_buyer(request, buyer_id=None):
-    """
-    Returns (buyer, placed_by_agent).
-    - If agent is making request and buyer_id provided: validate consent and return buyer
-    - Otherwise: return request.user as buyer
-    """
     if request.user.is_agent and buyer_id:
         try:
             buyer = request.user.assigned_buyers.get(pk=buyer_id, is_verified_b2b=True)
@@ -100,8 +98,6 @@ def _resolve_buyer(request, buyer_id=None):
         return buyer, request.user, None
     return request.user, None, None
 
-
-# ── Cart ──────────────────────────────────────────────────────────────────────
 
 class CartDetailView(APIView):
     permission_classes = [IsAuthenticated]
@@ -174,8 +170,6 @@ class CartItemDetailView(APIView):
         return Response(CartSerializer(cart).data)
 
 
-# ── Coupons ───────────────────────────────────────────────────────────────────
-
 class ActiveCouponsListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class   = CouponSerializer
@@ -240,8 +234,6 @@ class ApplyCouponView(APIView):
         })
 
 
-# ── Direct UPI Checkout ───────────────────────────────────────────────────────
-
 class DirectUPICheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -252,7 +244,7 @@ class DirectUPICheckoutView(APIView):
         shipping_address_id = request.data.get('shipping_address_id')
         billing_address_id  = request.data.get('billing_address_id')
         coupon_code         = request.data.get('coupon_code', '')
-        buyer_id            = request.data.get('buyer_id')   # Feature 1: OOBO
+        buyer_id            = request.data.get('buyer_id')
 
         if payment_plan not in ('advance', 'full'):
             return Response({'error': "payment_plan must be 'advance' or 'full'."},
@@ -261,7 +253,6 @@ class DirectUPICheckoutView(APIView):
             return Response({'error': 'Please enter your UPI Transaction Reference ID (UTR).'},
                             status=status.HTTP_400_BAD_REQUEST)
 
-        # Feature 1: resolve buyer (agent OOBO or self)
         buyer, placed_by_agent, err = _resolve_buyer(request, buyer_id)
         if err:
             return Response({'error': err}, status=status.HTTP_403_FORBIDDEN)
@@ -337,8 +328,6 @@ class DirectUPICheckoutView(APIView):
         }, status=status.HTTP_201_CREATED)
 
 
-# ── Razorpay ──────────────────────────────────────────────────────────────────
-
 class RazorpayCreateOrderView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -347,7 +336,7 @@ class RazorpayCreateOrderView(APIView):
         shipping_address_id = request.data.get('shipping_address_id')
         billing_address_id  = request.data.get('billing_address_id')
         coupon_code         = request.data.get('coupon_code', '')
-        buyer_id            = request.data.get('buyer_id')   # Feature 1: OOBO
+        buyer_id            = request.data.get('buyer_id')
 
         buyer, placed_by_agent, err = _resolve_buyer(request, buyer_id)
         if err:
@@ -462,8 +451,6 @@ class RazorpayVerifyPaymentView(APIView):
         return Response({'message': 'Payment verified.', 'order_id': order.id})
 
 
-# ── Standard checkout (disabled) ──────────────────────────────────────────────
-
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -474,8 +461,6 @@ class CheckoutView(APIView):
         )
 
 
-# ── Order History ─────────────────────────────────────────────────────────────
-
 class OrderHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -485,8 +470,6 @@ class OrderHistoryView(APIView):
         ).prefetch_related('items__variation__product').order_by('-created_at')
         return Response(OrderSerializer(orders, many=True).data)
 
-
-# ── Agent: Commissions & Ledger ───────────────────────────────────────────────
 
 class AgentCommissionsListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -499,16 +482,11 @@ class AgentCommissionsListView(generics.ListAPIView):
 
 
 class AgentLedgerSummaryView(APIView):
-    """
-    Feature 3: Full ledger summary including delivered sales,
-    commission earned, bonus, payments received, and outstanding balance.
-    """
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         agent = request.user
 
-        # Total delivered sales value
         total_delivered_sales = (
             Order.objects.filter(
                 user__assigned_agent=agent,
@@ -516,20 +494,17 @@ class AgentLedgerSummaryView(APIView):
             ).aggregate(t=Sum('total_amount'))['t'] or Decimal('0.00')
         )
 
-        # Commission earned (excluding bonus rows which have order=None)
-        commission_qs     = Commission.objects.filter(agent=agent)
-        total_commission  = commission_qs.filter(
+        commission_qs    = Commission.objects.filter(agent=agent)
+        total_commission = commission_qs.filter(
             order__isnull=False
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
 
-        # Bonus earned
         bonus_earned = commission_qs.filter(
             order__isnull=True
         ).aggregate(t=Sum('amount'))['t'] or Decimal('0.00')
 
         total_earned = _r(Decimal(str(total_commission)) + Decimal(str(bonus_earned)))
 
-        # Amount paid out by admin
         from accounts.models import AgentPayment
         total_paid_out = (
             AgentPayment.objects.filter(agent=agent).aggregate(t=Sum('amount'))['t']
@@ -538,7 +513,6 @@ class AgentLedgerSummaryView(APIView):
 
         outstanding_balance = _r(total_earned - Decimal(str(total_paid_out)))
 
-        # Bonus progress
         BONUS_THRESHOLD = Decimal('500000.00')
         BONUS_AMOUNT    = Decimal('5000.00')
         progress_pct    = min(float(total_delivered_sales / BONUS_THRESHOLD * 100), 100)
@@ -558,10 +532,7 @@ class AgentLedgerSummaryView(APIView):
         })
 
 
-# ── Agent: Eligible Buyers for OOBO ──────────────────────────────────────────
-
 class AgentEligibleBuyersView(APIView):
-    """Returns buyers who have granted agent_can_order=True."""
     permission_classes = [IsAgent]
 
     def get(self, request):
@@ -571,8 +542,6 @@ class AgentEligibleBuyersView(APIView):
         ).values('id', 'email', 'company_name', 'phone_number')
         return Response(list(buyers))
 
-
-# ── Agent: Sample Orders ──────────────────────────────────────────────────────
 
 class AgentSampleOrdersListView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
@@ -587,8 +556,6 @@ class AgentSampleOrdersListView(generics.ListCreateAPIView):
         serializer.save(agent=self.request.user)
 
 
-# ── Agent: Buyer Orders ───────────────────────────────────────────────────────
-
 class AgentOrdersListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class   = OrderSerializer
@@ -601,8 +568,6 @@ class AgentOrdersListView(generics.ListAPIView):
         ).order_by('-created_at')
 
 
-# ── Agent: Order Tracking Update ──────────────────────────────────────────────
-
 class AgentOrderTrackingUpdateView(generics.UpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class   = OrderTrackingUpdateSerializer
@@ -611,8 +576,6 @@ class AgentOrderTrackingUpdateView(generics.UpdateAPIView):
     def get_queryset(self):
         return Order.objects.filter(user__assigned_agent=self.request.user)
 
-
-# ── Tracking Timeline ─────────────────────────────────────────────────────────
 
 class OrderTrackingTimelineView(APIView):
     permission_classes = [IsAuthenticated]
@@ -637,5 +600,21 @@ class OrderTrackingTimelineView(APIView):
                 'location': '', 'message': 'No tracking number assigned yet.',
             }]})
 
-        timeline = get_bigship_tracking(order.tracking_number)
-        return Response({'timeline': timeline})
+        logger.debug(
+            f"[TRACKING] order={pk} awb='{order.tracking_number}' "
+            f"user={request.user.id} is_agent={is_agent}"
+        )
+
+        try:
+            timeline = get_bigship_tracking(order.tracking_number)
+            logger.debug(f"[TRACKING] got {len(timeline)} events for order={pk}")
+            return Response({'timeline': timeline})
+        except Exception as e:
+            logger.error(
+                f"[TRACKING] BigShip call failed for order={pk} "
+                f"awb='{order.tracking_number}': {type(e).__name__}: {e}"
+            )
+            return Response(
+                {'error': 'Unable to fetch tracking details. Please try again later.'},
+                status=status.HTTP_502_BAD_GATEWAY,
+            )
