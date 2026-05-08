@@ -14,7 +14,7 @@ const fmt = (ts) => {
   }
 };
 
-const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
+const TrackingTimelineModal = ({ order, isOpen, onClose, isAgent = false }) => {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState('');
@@ -25,11 +25,19 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
     setError('');
     setTimeline([]);
 
-    api.get(`orders/agent/orders/${order.id}/track-timeline/`)
+    // Use agent endpoint if opened from agent portal, buyer endpoint otherwise
+    const endpoint = isAgent
+      ? `orders/agent/orders/${order.id}/track-timeline/`
+      : `orders/orders/${order.id}/track-timeline/`;
+
+    api.get(endpoint)
       .then(res => setTimeline(res.data?.timeline ?? []))
-      .catch(() => setError('Failed to fetch tracking details. Please try again.'))
+      .catch((err) => {
+        const msg = err.response?.data?.error || 'Failed to fetch tracking details. Please try again.';
+        setError(msg);
+      })
       .finally(() => setLoading(false));
-  }, [isOpen, order?.id]);
+  }, [isOpen, order?.id, isAgent]);
 
   if (!isOpen || !order) return null;
 
@@ -37,7 +45,6 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/50 backdrop-blur-sm">
       <div className="w-full max-w-lg bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 shadow-xl flex flex-col max-h-[85vh]">
 
-        {/* Header */}
         <div className="flex items-start justify-between px-6 py-5 border-b border-gray-100 dark:border-white/5 shrink-0">
           <div>
             <h3 className="text-gray-900 dark:text-zinc-100 text-lg font-bold">Package Tracking</h3>
@@ -60,7 +67,6 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Body */}
         <div className="overflow-y-auto flex-1 px-6 py-6">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
@@ -79,15 +85,12 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
             </div>
           ) : (
             <div className="relative">
-              {/* Vertical line */}
               <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-white/10" />
-
               <div className="space-y-6">
                 {timeline.map((event, idx) => {
                   const isFirst = idx === 0;
                   return (
                     <div key={idx} className="flex gap-4 relative">
-                      {/* Dot */}
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 z-10 ${
                         isFirst
                           ? 'bg-accent border-accent'
@@ -98,8 +101,6 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
                           : <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-zinc-600" />
                         }
                       </div>
-
-                      {/* Content */}
                       <div className="flex-1 pb-1">
                         <p className={`text-sm font-bold ${isFirst ? 'text-accent' : 'text-gray-900 dark:text-zinc-100'}`}>
                           {event.status || 'Update'}
@@ -128,7 +129,6 @@ const TrackingTimelineModal = ({ order, isOpen, onClose }) => {
           )}
         </div>
 
-        {/* Footer */}
         <div className="px-6 py-4 border-t border-gray-100 dark:border-white/5 shrink-0">
           <button onClick={onClose}
             className="w-full border border-gray-200 dark:border-white/10 text-gray-600 dark:text-zinc-300 hover:bg-gray-50 dark:hover:bg-zinc-800 font-bold py-2.5 rounded-xl text-sm transition-colors">
