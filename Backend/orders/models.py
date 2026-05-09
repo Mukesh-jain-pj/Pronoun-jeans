@@ -78,6 +78,11 @@ class Order(models.Model):
         ADVANCE = 'advance', '10% Advance'
         FULL    = 'full',    'Full Payment (1% off)'
 
+    class PaymentProofType(models.TextChoices):
+        UTR        = 'utr',        'UTR Number'
+        SCREENSHOT = 'screenshot', 'Payment Screenshot'
+        NONE       = 'none',       'No Proof (Manual Verification)'
+
     user             = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='orders')
     shipping_address = models.ForeignKey('accounts.Address', null=True, blank=True, on_delete=models.SET_NULL, related_name='shipping_orders')
     billing_address  = models.ForeignKey('accounts.Address', null=True, blank=True, on_delete=models.SET_NULL, related_name='billing_orders')
@@ -89,28 +94,44 @@ class Order(models.Model):
     coupon          = models.ForeignKey(Coupon, null=True, blank=True, on_delete=models.SET_NULL, related_name='orders')
     discount_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
-    payment_plan     = models.CharField(max_length=10, choices=PaymentPlan.choices, null=True, blank=True)
-    upi_discount     = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    amount_paid      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    balance_due      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    utr_number       = models.CharField(max_length=50, null=True, blank=True)
-    payment_verified = models.BooleanField(default=False)
+    payment_plan      = models.CharField(max_length=10, choices=PaymentPlan.choices, null=True, blank=True)
+    upi_discount      = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    amount_paid       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    balance_due       = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 
+    # Payment proof fields
+    payment_proof_type  = models.CharField(
+        max_length=15,
+        choices=PaymentProofType.choices,
+        default=PaymentProofType.NONE,
+        help_text='What proof of payment the buyer submitted.',
+    )
+    utr_number          = models.CharField(max_length=50, null=True, blank=True,
+                                           help_text='UPI Transaction Reference ID provided by buyer')
+    payment_screenshot  = models.ImageField(
+        upload_to='payment_receipts/',
+        null=True, blank=True,
+        help_text='Screenshot of payment success screen uploaded by buyer',
+    )
+    payment_verified    = models.BooleanField(default=False,
+                                              help_text='Admin toggles this after confirming payment in bank')
+
+    # Razorpay
     razorpay_order_id   = models.CharField(max_length=100, null=True, blank=True)
     razorpay_payment_id = models.CharField(max_length=100, null=True, blank=True)
     razorpay_signature  = models.CharField(max_length=255, null=True, blank=True)
 
+    # Tracking
     courier_name    = models.CharField(max_length=100, null=True, blank=True)
     tracking_number = models.CharField(max_length=100, null=True, blank=True)
     tracking_url    = models.URLField(null=True, blank=True)
 
-    # Feature 1: track if this order was placed by an agent on behalf of buyer
+    # OOBO
     placed_by_agent = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         null=True, blank=True,
         on_delete=models.SET_NULL,
         related_name='orders_placed_on_behalf',
-        help_text='Set if an agent placed this order on behalf of the buyer.',
     )
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -119,9 +140,8 @@ class Order(models.Model):
     @property
     def grand_total(self):
         from decimal import Decimal
-        subtotal     = max(self.total_amount - Decimal(str(self.discount_amount)), Decimal('0'))
-        after_upi    = max(subtotal - Decimal(str(self.upi_discount)), Decimal('0'))
-        # shipping
+        subtotal  = max(self.total_amount - Decimal(str(self.discount_amount)), Decimal('0'))
+        after_upi = max(subtotal - Decimal(str(self.upi_discount)), Decimal('0'))
         SHIPPING_FEE            = Decimal('300.00')
         FREE_SHIPPING_THRESHOLD = Decimal('15000.00')
         shipping = SHIPPING_FEE if after_upi < FREE_SHIPPING_THRESHOLD else Decimal('0.00')
@@ -158,7 +178,6 @@ class Commission(models.Model):
         related_name='commissions',
         limit_choices_to={'is_agent': True},
     )
-    # nullable to support bonus commissions not tied to a specific order
     order                 = models.OneToOneField(
         Order,
         on_delete=models.CASCADE,

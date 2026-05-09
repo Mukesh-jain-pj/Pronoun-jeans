@@ -1,10 +1,10 @@
-import logging
 import razorpay
 from decimal import Decimal, ROUND_HALF_UP
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status, generics
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Sum
@@ -19,8 +19,6 @@ from .serializers import (
     CartSerializer, OrderSerializer, CommissionSerializer,
     SampleOrderSerializer, OrderTrackingUpdateSerializer, CouponSerializer,
 )
-
-logger = logging.getLogger(__name__)
 
 SHIPPING_FEE            = Decimal('300.00')
 FREE_SHIPPING_THRESHOLD = Decimal('15000.00')
@@ -99,6 +97,8 @@ def _resolve_buyer(request, buyer_id=None):
     return request.user, None, None
 
 
+# ── Cart ──────────────────────────────────────────────────────────────────────
+
 class CartDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -170,6 +170,8 @@ class CartItemDetailView(APIView):
         return Response(CartSerializer(cart).data)
 
 
+# ── Coupons ───────────────────────────────────────────────────────────────────
+
 class ActiveCouponsListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class   = CouponSerializer
@@ -234,29 +236,74 @@ class ApplyCouponView(APIView):
         })
 
 
+# ── Direct UPI Checkout ───────────────────────────────────────────────────────
+
 class DirectUPICheckoutView(APIView):
+    """
+    POST /api/orders/upi/checkout/
+
+    Accepts multipart/form-data to support screenshot uploads.
+
+    Payload fields (all as form fields, not JSON):
+        payment_plan         'advance' | 'full'
+        proof_type           'utr' | 'screenshot' | 'none'
+        utr_number           str   (required if proof_type == 'utr')
+        payment_screenshot   file  (required if proof_type == 'screenshot')
+        shipping_address_id  int
+        billing_address_id   int
+        coupon_code          str   (optional)
+        buyer_id             int   (optional, for OOBO)
+    """
     permission_classes = [IsAuthenticated]
+    parser_classes     = [MultiPartParser, FormParser, JSONParser]
 
     @transaction.atomic
     def post(self, request):
-        payment_plan        = request.data.get('payment_plan', '').strip()
-        utr_number          = request.data.get('utr_number', '').strip()
-        shipping_address_id = request.data.get('shipping_address_id')
-        billing_address_id  = request.data.get('billing_address_id')
-        coupon_code         = request.data.get('coupon_code', '')
-        buyer_id            = request.data.get('buyer_id')
+        data = request.data
 
+        payment_plan        = data.get('payment_plan', '').strip()
+        proof_type          = data.get('proof_type', 'none').strip()
+        utr_number          = data.get('utr_number', '').strip()
+        shipping_address_id = data.get('shipping_address_id')
+        billing_address_id  = data.get('billing_address_id')
+        coupon_code         = data.get('coupon_code', '')
+        buyer_id            = data.get('buyer_id')
+        screenshot_file     = request.FILES.get('payment_screenshot')
+
+        # ── Validate payment_plan ──
         if payment_plan not in ('advance', 'full'):
             return Response({'error': "payment_plan must be 'advance' or 'full'."},
                             status=status.HTTP_400_BAD_REQUEST)
-        if not utr_number:
+
+        # ── Validate proof_type ──
+        if proof_type not in ('utr', 'screenshot', 'none'):
+            return Response({'error': "proof_type must be 'utr', 'screenshot', or 'none'."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Proof-specific validation ──
+        if proof_type == 'utr' and not utr_number:
             return Response({'error': 'Please enter your UPI Transaction Reference ID (UTR).'},
                             status=status.HTTP_400_BAD_REQUEST)
 
+        if proof_type == 'screenshot' and not screenshot_file:
+            return Response({'error': 'Please upload a payment screenshot.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        if proof_type == 'screenshot' and screenshot_file:
+            allowed_types = ['image/jpeg', 'image/png', 'image/webp']
+            if screenshot_file.content_type not in allowed_types:
+                return Response({'error': 'Screenshot must be a JPG, PNG, or WebP image.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if screenshot_file.size > 5 * 1024 * 1024:
+                return Response({'error': 'Screenshot must be smaller than 5MB.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+        # ── Resolve buyer (OOBO or self) ──
         buyer, placed_by_agent, err = _resolve_buyer(request, buyer_id)
         if err:
             return Response({'error': err}, status=status.HTTP_403_FORBIDDEN)
 
+        # ── Addresses ──
         shipping_address = _resolve_address(shipping_address_id, buyer)
         billing_address  = _resolve_address(billing_address_id,  buyer)
         if not shipping_address:
@@ -264,6 +311,7 @@ class DirectUPICheckoutView(APIView):
         if not billing_address:
             return Response({'error': 'Please select a billing address.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ── Cart ──
         try:
             cart = Cart.objects.prefetch_related('items__variation__product').get(user=request.user)
         except Cart.DoesNotExist:
@@ -273,6 +321,7 @@ class DirectUPICheckoutView(APIView):
         if not cart_items.exists():
             return Response({'error': 'Cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # ── Compute totals ──
         subtotal           = _compute_subtotal(cart_items)
         coupon, coupon_pct = _resolve_coupon(coupon_code, subtotal)
         upi_pct            = Decimal('0.01') if payment_plan == 'full' else Decimal('0')
@@ -290,23 +339,33 @@ class DirectUPICheckoutView(APIView):
             balance_due        = Decimal('0.00')
             payment_status_val = Order.PaymentStatus.PENDING
 
+        # ── Map proof_type to model choices ──
+        proof_type_map = {
+            'utr':        Order.PaymentProofType.UTR,
+            'screenshot': Order.PaymentProofType.SCREENSHOT,
+            'none':       Order.PaymentProofType.NONE,
+        }
+
+        # ── Create Order ──
         order = Order.objects.create(
-            user             = buyer,
-            placed_by_agent  = placed_by_agent,
-            shipping_address = shipping_address,
-            billing_address  = billing_address,
-            payment_method   = Order.PaymentMethod.DIRECT_UPI,
-            payment_status   = payment_status_val,
-            status           = Order.Status.PENDING_VERIFICATION,
-            total_amount     = subtotal,
-            coupon           = coupon,
-            discount_amount  = calc['coupon_disc'],
-            payment_plan     = payment_plan,
-            upi_discount     = calc['upi_disc'],
-            amount_paid      = amount_paid,
-            balance_due      = balance_due,
-            utr_number       = utr_number,
-            payment_verified = False,
+            user                = buyer,
+            placed_by_agent     = placed_by_agent,
+            shipping_address    = shipping_address,
+            billing_address     = billing_address,
+            payment_method      = Order.PaymentMethod.DIRECT_UPI,
+            payment_status      = payment_status_val,
+            status              = Order.Status.PENDING_VERIFICATION,
+            total_amount        = subtotal,
+            coupon              = coupon,
+            discount_amount     = calc['coupon_disc'],
+            payment_plan        = payment_plan,
+            upi_discount        = calc['upi_disc'],
+            amount_paid         = amount_paid,
+            balance_due         = balance_due,
+            payment_proof_type  = proof_type_map[proof_type],
+            utr_number          = utr_number if proof_type == 'utr' else None,
+            payment_screenshot  = screenshot_file if proof_type == 'screenshot' else None,
+            payment_verified    = False,
         )
 
         OrderItem.objects.bulk_create([
@@ -317,16 +376,25 @@ class DirectUPICheckoutView(APIView):
 
         cart.items.all().delete()
 
+        # ── Response message based on proof type ──
+        messages = {
+            'utr':        'Order placed. UTR submitted — we\'ll verify within 2 hours.',
+            'screenshot': 'Order placed. Screenshot submitted — we\'ll verify within 2 hours.',
+            'none':       'Order placed without proof. Manual bank verification may take up to 24 hours.',
+        }
+
         return Response({
             'order_id':    order.id,
             'grand_total': str(grand_total),
             'amount_paid': str(amount_paid),
             'balance_due': str(balance_due),
             'shipping':    str(shipping),
-            'gst':         str(calc['gst']),
-            'message':     'Order placed. Pending payment verification.',
+            'proof_type':  proof_type,
+            'message':     messages[proof_type],
         }, status=status.HTTP_201_CREATED)
 
+
+# ── Razorpay ──────────────────────────────────────────────────────────────────
 
 class RazorpayCreateOrderView(APIView):
     permission_classes = [IsAuthenticated]
@@ -451,6 +519,8 @@ class RazorpayVerifyPaymentView(APIView):
         return Response({'message': 'Payment verified.', 'order_id': order.id})
 
 
+# ── Standard checkout (disabled) ──────────────────────────────────────────────
+
 class CheckoutView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -461,6 +531,8 @@ class CheckoutView(APIView):
         )
 
 
+# ── Order History ─────────────────────────────────────────────────────────────
+
 class OrderHistoryView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -470,6 +542,8 @@ class OrderHistoryView(APIView):
         ).prefetch_related('items__variation__product').order_by('-created_at')
         return Response(OrderSerializer(orders, many=True).data)
 
+
+# ── Agent: Commissions & Ledger ───────────────────────────────────────────────
 
 class AgentCommissionsListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
@@ -505,7 +579,6 @@ class AgentLedgerSummaryView(APIView):
 
         total_earned = _r(Decimal(str(total_commission)) + Decimal(str(bonus_earned)))
 
-        from accounts.models import AgentPayment
         total_paid_out = (
             AgentPayment.objects.filter(agent=agent).aggregate(t=Sum('amount'))['t']
             or Decimal('0.00')
@@ -600,21 +673,5 @@ class OrderTrackingTimelineView(APIView):
                 'location': '', 'message': 'No tracking number assigned yet.',
             }]})
 
-        logger.debug(
-            f"[TRACKING] order={pk} awb='{order.tracking_number}' "
-            f"user={request.user.id} is_agent={is_agent}"
-        )
-
-        try:
-            timeline = get_bigship_tracking(order.tracking_number)
-            logger.debug(f"[TRACKING] got {len(timeline)} events for order={pk}")
-            return Response({'timeline': timeline})
-        except Exception as e:
-            logger.error(
-                f"[TRACKING] BigShip call failed for order={pk} "
-                f"awb='{order.tracking_number}': {type(e).__name__}: {e}"
-            )
-            return Response(
-                {'error': 'Unable to fetch tracking details. Please try again later.'},
-                status=status.HTTP_502_BAD_GATEWAY,
-            )
+        timeline = get_bigship_tracking(order.tracking_number)
+        return Response({'timeline': timeline})

@@ -6,6 +6,7 @@ import {
   Tag, ReceiptText, Plus, Minus, Trash2,
   Truck, CreditCard, Building, ShieldCheck, Smartphone,
   X, Lock, Unlock, ChevronDown, ChevronUp, Copy, Check,
+  Upload, Hash, Clock,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useCartStore } from '../store/useCartStore';
@@ -24,13 +25,6 @@ const loadRazorpayScript = () =>
     s.onerror = () => resolve(false);
     document.body.appendChild(s);
   });
-
-// GST Math
-// base      = subtotal * 0.95
-// gst       = subtotal * 0.05
-// discounts applied on base only
-// shipping  = 300 if (discBase + gst) < 15000 else 0
-// grandTotal = discBase + gst + shipping
 
 const calcGST = (subtotal, couponPct = 0, upiDiscPct = 0) => {
   const r2         = (n) => Math.round(n * 100) / 100;
@@ -300,13 +294,6 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
           <span>Total Units</span><span className="font-semibold text-gray-900 dark:text-zinc-100">{totalUnits}</span>
         </div>
       </div>
-      <AvailableOffers
-        coupons={availableCoupons}
-        subtotal={subtotal}
-        appliedCoupon={couponData}
-        onApply={onCouponApply}
-        onRemove={onCouponRemove}
-      />
 
       <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-3.5 space-y-2 text-sm border border-gray-100 dark:border-white/5">
         <div className="flex justify-between text-gray-700 dark:text-zinc-300">
@@ -343,21 +330,22 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
           </div>
           {shipping > 0 ? (
             <div className="flex justify-between text-orange-600 dark:text-orange-400 font-semibold">
-              <span className="flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5" /> Shipping
-              </span>
+              <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> Shipping</span>
               <span>+₹{fmt(shipping)}</span>
             </div>
           ) : (
             <div className="flex justify-between text-green-600 dark:text-green-400 font-semibold">
-              <span className="flex items-center gap-1">
-                <Truck className="w-3.5 h-3.5" /> Shipping
-              </span>
+              <span className="flex items-center gap-1"><Truck className="w-3.5 h-3.5" /> Shipping</span>
               <span>FREE</span>
             </div>
           )}
         </div>
       </div>
+
+      <AvailableOffers
+        coupons={availableCoupons} subtotal={subtotal}
+        appliedCoupon={couponData} onApply={onCouponApply} onRemove={onCouponRemove}
+      />
 
       <div className="flex items-center justify-between bg-accent/10 border border-accent/20 rounded-xl px-4 py-3">
         <span className="text-accent font-bold text-sm uppercase tracking-widest">Grand Total</span>
@@ -383,10 +371,104 @@ const OrderSummaryCard = ({ items, couponData, upiDiscPct, availableCoupons, onC
   );
 };
 
+// ── Proof Selector ────────────────────────────────────────────────────────────
+
+const PROOF_OPTIONS = [
+  { key: 'utr',        icon: Hash,   label: 'Enter UTR',           sub: 'Enter your 12-digit transaction ID'       },
+  { key: 'screenshot', icon: Upload, label: 'Upload Screenshot',   sub: 'Upload payment success screen image'      },
+  { key: 'none',       icon: Clock,  label: 'Submit Proof Later',  sub: 'Manual verification — takes up to 24 hrs' },
+];
+
+const ProofSelector = ({ proofType, setProofType, utrNumber, setUtrNumber, screenshotFile, setScreenshotFile }) => {
+  const fileRef = useRef(null);
+
+  return (
+    <div className="space-y-4">
+      <p className="text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest">
+        Payment Proof
+      </p>
+
+      {/* 3-way toggle */}
+      <div className="grid grid-cols-3 gap-2">
+        {PROOF_OPTIONS.map(opt => {
+          const Icon     = opt.icon;
+          const selected = proofType === opt.key;
+          return (
+            <button key={opt.key} onClick={() => setProofType(opt.key)}
+              className={`flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition-all ${selected ? 'border-accent bg-accent/5' : 'border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-zinc-900 hover:border-gray-300'}`}>
+              <Icon className={`w-4 h-4 ${selected ? 'text-accent' : 'text-gray-400'}`} />
+              <p className={`text-xs font-bold leading-tight ${selected ? 'text-accent' : 'text-gray-700 dark:text-zinc-300'}`}>{opt.label}</p>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Option A — UTR */}
+      {proofType === 'utr' && (
+        <div className="space-y-1.5">
+          <label className="block text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest">
+            UPI Transaction Reference (UTR) *
+          </label>
+          <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value.trim())}
+            placeholder="e.g. 426813598234"
+            className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent font-mono" />
+          <p className="text-gray-400 text-xs">12-digit UTR / transaction ID from your UPI app.</p>
+        </div>
+      )}
+
+      {/* Option B — Screenshot */}
+      {proofType === 'screenshot' && (
+        <div className="space-y-2">
+          <label className="block text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest">
+            Payment Screenshot *
+          </label>
+          <div
+            onClick={() => fileRef.current?.click()}
+            className={`cursor-pointer border-2 border-dashed rounded-xl p-5 flex flex-col items-center gap-2 transition-colors ${screenshotFile ? 'border-green-400 bg-green-50 dark:bg-green-500/5' : 'border-gray-200 dark:border-white/10 hover:border-accent/40 bg-gray-50 dark:bg-zinc-800'}`}>
+            {screenshotFile ? (
+              <>
+                <CheckCircle2 className="w-6 h-6 text-green-500" />
+                <p className="text-green-700 dark:text-green-400 text-sm font-semibold">{screenshotFile.name}</p>
+                <p className="text-gray-400 text-xs">{(screenshotFile.size / 1024).toFixed(0)} KB — click to change</p>
+              </>
+            ) : (
+              <>
+                <Upload className="w-6 h-6 text-gray-400" />
+                <p className="text-gray-600 dark:text-zinc-300 text-sm font-semibold">Click to upload screenshot</p>
+                <p className="text-gray-400 text-xs">JPG, PNG or WebP · Max 5MB</p>
+              </>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+            onChange={e => setScreenshotFile(e.target.files?.[0] || null)} />
+        </div>
+      )}
+
+      {/* Option C — No proof warning */}
+      {proofType === 'none' && (
+        <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/25 rounded-xl px-4 py-3 flex items-start gap-3">
+          <Clock className="w-4 h-4 text-yellow-600 dark:text-yellow-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-yellow-700 dark:text-yellow-400 text-sm font-semibold">Manual Verification</p>
+            <p className="text-yellow-600 dark:text-yellow-500 text-xs mt-0.5">
+              Without a UTR or screenshot, our team will verify your payment manually by checking bank records.
+              This may delay order processing by up to <strong>24 hours</strong>.
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ── Direct UPI Panel ──────────────────────────────────────────────────────────
+
 const DirectUPIPanel = ({
   subtotal, couponPct,
   paymentPlan, setPaymentPlan,
+  proofType, setProofType,
   utrNumber, setUtrNumber,
+  screenshotFile, setScreenshotFile,
   onConfirm, confirming,
 }) => {
   const [copied, setCopied] = useState(false);
@@ -395,8 +477,6 @@ const DirectUPIPanel = ({
   const { gst, couponDisc, upiDisc, discBase, preShipping, shipping, grandTotal } =
     calcGST(subtotal, couponPct, upiDiscPct);
 
-  // For advance: pay 10% of pre-shipping total + full shipping
-  // For full: pay entire grandTotal
   const payableNow = paymentPlan === 'advance'
     ? Math.round((preShipping * 0.10 + shipping) * 100) / 100
     : grandTotal;
@@ -414,8 +494,15 @@ const DirectUPIPanel = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const canConfirm = () => {
+    if (proofType === 'utr')        return !!utrNumber.trim();
+    if (proofType === 'screenshot') return !!screenshotFile;
+    return true; // 'none' — always allowed
+  };
+
   return (
     <div className="space-y-5">
+      {/* Plan toggle */}
       <div>
         <p className="text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest mb-3">Choose Payment Plan</p>
         <div className="grid grid-cols-2 gap-3">
@@ -437,6 +524,7 @@ const DirectUPIPanel = ({
         </div>
       </div>
 
+      {/* Pricing breakdown */}
       <div className="bg-gray-50 dark:bg-zinc-800/50 rounded-xl p-4 space-y-2 text-sm border border-gray-100 dark:border-white/5">
         {couponDisc > 0 && (
           <div className="flex justify-between text-green-600 font-semibold">
@@ -481,6 +569,7 @@ const DirectUPIPanel = ({
         </div>
       </div>
 
+      {/* QR Code */}
       <div className="flex flex-col items-center gap-4 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-white/10 rounded-2xl p-6">
         <p className="text-gray-700 dark:text-zinc-300 text-sm font-bold">Scan to Pay ₹{fmt(payableNow)}</p>
         <div className="p-3 bg-white rounded-xl shadow-sm border border-gray-100">
@@ -504,30 +593,37 @@ const DirectUPIPanel = ({
         )}
       </div>
 
-      <div className="space-y-2">
-        <label className="block text-gray-700 dark:text-zinc-300 text-xs font-bold uppercase tracking-widest">
-          UPI Transaction Reference (UTR) *
-        </label>
-        <input type="text" value={utrNumber} onChange={e => setUtrNumber(e.target.value.trim())}
-          placeholder="e.g. 426813598234"
-          className="w-full bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 placeholder-gray-400 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-accent font-mono" />
-        <p className="text-gray-400 text-xs">Enter the 12-digit UTR / transaction ID from your UPI app after paying.</p>
-      </div>
+      {/* 3-way proof selector */}
+      <ProofSelector
+        proofType={proofType} setProofType={setProofType}
+        utrNumber={utrNumber} setUtrNumber={setUtrNumber}
+        screenshotFile={screenshotFile} setScreenshotFile={setScreenshotFile}
+      />
 
-      <button onClick={onConfirm} disabled={confirming || !utrNumber.trim()}
+      <button onClick={onConfirm} disabled={confirming || !canConfirm()}
         className="w-full flex items-center justify-center gap-2.5 bg-accent hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold px-6 py-3.5 rounded-xl transition-colors text-sm">
         {confirming ? <><Loader className="animate-spin w-4 h-4" /> Confirming…</> : <><PackageCheck className="w-4 h-4" /> Confirm Order</>}
       </button>
-      <p className="text-gray-400 text-xs text-center">Your order will be verified within 2 hours of payment confirmation.</p>
+
+      {proofType === 'none' && (
+        <p className="text-yellow-600 dark:text-yellow-500 text-xs text-center">
+          ⏳ No proof submitted — verification may take up to 24 hours.
+        </p>
+      )}
     </div>
   );
 };
+
+// ── Checkout Panel ────────────────────────────────────────────────────────────
 
 const CheckoutPanel = ({
   items, addresses, shippingId, billingId,
   onShippingSelect, onBillingSelect,
   couponData, onCouponApply, onCouponRemove, availableCoupons,
-  paymentPlan, setPaymentPlan, utrNumber, setUtrNumber,
+  paymentPlan, setPaymentPlan,
+  proofType, setProofType,
+  utrNumber, setUtrNumber,
+  screenshotFile, setScreenshotFile,
   onUpiConfirm, upiConfirming,
   onRazorpayCheckout, razorpayChecking,
 }) => {
@@ -574,7 +670,9 @@ const CheckoutPanel = ({
             <DirectUPIPanel
               subtotal={subtotal} couponPct={couponPct}
               paymentPlan={paymentPlan} setPaymentPlan={setPaymentPlan}
+              proofType={proofType} setProofType={setProofType}
               utrNumber={utrNumber} setUtrNumber={setUtrNumber}
+              screenshotFile={screenshotFile} setScreenshotFile={setScreenshotFile}
               onConfirm={onUpiConfirm} confirming={upiConfirming}
             />
           )}
@@ -595,17 +693,16 @@ const CheckoutPanel = ({
 
       <div className="w-full xl:w-80 shrink-0">
         <OrderSummaryCard
-          items={items}
-          couponData={couponData}
-          upiDiscPct={upiDiscPct}
+          items={items} couponData={couponData} upiDiscPct={upiDiscPct}
           availableCoupons={availableCoupons}
-          onCouponApply={onCouponApply}
-          onCouponRemove={onCouponRemove}
+          onCouponApply={onCouponApply} onCouponRemove={onCouponRemove}
         />
       </div>
     </div>
   );
 };
+
+// ── Main Cart ─────────────────────────────────────────────────────────────────
 
 const Cart = () => {
   const navigate   = useNavigate();
@@ -622,7 +719,9 @@ const Cart = () => {
   const [success, setSuccess]                   = useState(false);
   const [successMsg, setSuccessMsg]             = useState('');
   const [paymentPlan, setPaymentPlan]           = useState('full');
+  const [proofType, setProofType]               = useState('utr');
   const [utrNumber, setUtrNumber]               = useState('');
+  const [screenshotFile, setScreenshotFile]     = useState(null);
   const [upiConfirming, setUpiConfirming]       = useState(false);
   const [razorpayChecking, setRazorpayChecking] = useState(false);
 
@@ -663,20 +762,32 @@ const Cart = () => {
   const handleUpiConfirm = async () => {
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
-    if (!utrNumber.trim()) { showToast('Please enter your UPI Transaction Reference ID.', 'error'); return; }
+
     setUpiConfirming(true);
     try {
-      const res = await api.post('orders/upi/checkout/', {
-        shipping_address_id: shippingId,
-        billing_address_id:  billingId,
-        payment_plan:        paymentPlan,
-        utr_number:          utrNumber.trim(),
-        coupon_code:         couponData?.coupon_code || '',
+      // Always use FormData to support file uploads
+      const formData = new FormData();
+      formData.append('payment_plan',        paymentPlan);
+      formData.append('proof_type',          proofType);
+      formData.append('shipping_address_id', shippingId);
+      formData.append('billing_address_id',  billingId);
+      formData.append('coupon_code',         couponData?.coupon_code || '');
+
+      if (proofType === 'utr') {
+        formData.append('utr_number', utrNumber.trim());
+      }
+      if (proofType === 'screenshot' && screenshotFile) {
+        formData.append('payment_screenshot', screenshotFile);
+      }
+
+      const res = await api.post('orders/upi/checkout/', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
       });
-      setItems([]); setCouponData(null); setUtrNumber('');
+
+      setItems([]); setCouponData(null); setUtrNumber(''); setScreenshotFile(null);
       fetchCart();
       setSuccess(true);
-      setSuccessMsg(`Order #${res.data.order_id} placed! We'll verify your payment within 2 hours.`);
+      setSuccessMsg(res.data.message || `Order #${res.data.order_id} placed successfully!`);
       setTimeout(() => navigate('/history'), 3500);
     } catch (err) {
       showToast(err.response?.data?.error || 'Order failed. Please try again.', 'error');
@@ -834,7 +945,9 @@ const Cart = () => {
               couponData={couponData} onCouponApply={setCouponData} onCouponRemove={() => setCouponData(null)}
               availableCoupons={availableCoupons}
               paymentPlan={paymentPlan} setPaymentPlan={setPaymentPlan}
+              proofType={proofType} setProofType={setProofType}
               utrNumber={utrNumber} setUtrNumber={setUtrNumber}
+              screenshotFile={screenshotFile} setScreenshotFile={setScreenshotFile}
               onUpiConfirm={handleUpiConfirm} upiConfirming={upiConfirming}
               onRazorpayCheckout={handleRazorpayCheckout} razorpayChecking={razorpayChecking}
             />
