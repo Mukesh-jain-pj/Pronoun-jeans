@@ -3,7 +3,7 @@ from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.text import slugify
 
-from .models import Category, Product, ProductImage, ProductVariation, Color
+from .models import Category, Product, ProductImage, ProductVariation, Color, HeroSlide
 
 
 def _unique_slug(base_slug):
@@ -24,6 +24,27 @@ def _unique_sku(base_sku):
     return sku
 
 
+# ── Hero Slides ───────────────────────────────────────────────────────────────
+
+@admin.register(HeroSlide)
+class HeroSlideAdmin(admin.ModelAdmin):
+    list_display  = ['__str__', 'order', 'is_active', 'preview']
+    list_editable = ['order', 'is_active']
+    ordering      = ['order', 'id']
+
+    def preview(self, obj):
+        from django.utils.html import format_html
+        if obj.image:
+            return format_html(
+                '<img src="{}" style="height:48px;border-radius:6px;object-fit:cover;" />',
+                obj.image.url,
+            )
+        return '—'
+    preview.short_description = 'Preview'
+
+
+# ── Inlines ───────────────────────────────────────────────────────────────────
+
 class ProductImageInline(admin.TabularInline):
     model   = ProductImage
     extra   = 0
@@ -42,16 +63,10 @@ class ProductVariationInline(admin.TabularInline):
     readonly_fields = ['color']
 
 
+# ── Clone action ──────────────────────────────────────────────────────────────
+
 @admin.action(description='Duplicate selected product(s)')
 def clone_products(modeladmin, request, queryset):
-    """
-    Deep-clones each selected product:
-      1. Clones the Product row with a new name + unique slug
-      2. Clones all ProductVariation rows with new unique SKUs
-      3. Clones all ProductImage rows
-    Clone starts as inactive so admin can review before publishing.
-    Single clone redirects to its edit page. Multiple clones stay on list.
-    """
     original_pks = list(queryset.values_list('pk', flat=True))
     cloned_ids   = []
 
@@ -63,7 +78,6 @@ def clone_products(modeladmin, request, queryset):
         except Product.DoesNotExist:
             continue
 
-        # 1. Clone Product
         new_name = f"{source.name} (Copy)"
         new_slug = _unique_slug(slugify(new_name))
 
@@ -78,23 +92,21 @@ def clone_products(modeladmin, request, queryset):
         clone.image        = source.image
         clone.save()
 
-        # 2. Clone ProductVariations
         for v in source.variations.all():
-            nv                  = ProductVariation()
-            nv.product          = clone
-            nv.size             = v.size
-            nv.color            = v.color
-            nv.color_palette    = v.color_palette
-            nv.sku              = _unique_sku(f"{v.sku}-copy")
-            nv.b2b_price        = v.b2b_price
-            nv.per_piece_price  = v.per_piece_price
-            nv.mrp              = v.mrp
-            nv.mrp_per_piece    = v.mrp_per_piece
-            nv.stock_quantity   = v.stock_quantity
-            nv.image            = v.image
+            nv                 = ProductVariation()
+            nv.product         = clone
+            nv.size            = v.size
+            nv.color           = v.color
+            nv.color_palette   = v.color_palette
+            nv.sku             = _unique_sku(f"{v.sku}-copy")
+            nv.b2b_price       = v.b2b_price
+            nv.per_piece_price = v.per_piece_price
+            nv.mrp             = v.mrp
+            nv.mrp_per_piece   = v.mrp_per_piece
+            nv.stock_quantity  = v.stock_quantity
+            nv.image           = v.image
             nv.save()
 
-        # 3. Clone ProductImages
         for img in source.gallery_images.all():
             ni          = ProductImage()
             ni.product  = clone
@@ -106,11 +118,9 @@ def clone_products(modeladmin, request, queryset):
         cloned_ids.append(clone.pk)
 
     count = len(cloned_ids)
-
     if count == 0:
         modeladmin.message_user(request, 'No products were cloned.', messages.WARNING)
         return
-
     if count == 1:
         edit_url = reverse('admin:products_product_change', args=[cloned_ids[0]])
         modeladmin.message_user(
@@ -119,13 +129,14 @@ def clone_products(modeladmin, request, queryset):
             messages.SUCCESS,
         )
         return HttpResponseRedirect(edit_url)
-
     modeladmin.message_user(
         request,
         f'{count} products cloned (IDs: {", ".join(str(i) for i in cloned_ids)}). All clones start as inactive.',
         messages.SUCCESS,
     )
 
+
+# ── Other admin registrations ─────────────────────────────────────────────────
 
 @admin.register(Color)
 class ColorAdmin(admin.ModelAdmin):

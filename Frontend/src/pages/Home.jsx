@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Package, Truck, ShieldCheck, ArrowRight, Tag } from 'lucide-react';
+import { Package, Truck, ShieldCheck, ArrowRight, Tag, ChevronLeft, ChevronRight } from 'lucide-react';
 import api from '../api/axios';
 
 const TRUST_BADGES = [
@@ -9,9 +9,111 @@ const TRUST_BADGES = [
   { icon: ShieldCheck, title: 'Quality Guaranteed',   desc: 'Every piece is quality-checked before it leaves our warehouse.' },
 ];
 
+const SLIDE_INTERVAL = 4500;
+
+const HeroSlideshow = ({ slides }) => {
+  const [current, setCurrent] = useState(0);
+  const [fading, setFading]   = useState(false);
+  const timerRef              = useRef(null);
+
+  const goTo = (idx) => {
+    if (fading || idx === current) return;
+    setFading(true);
+    setTimeout(() => {
+      setCurrent(idx);
+      setFading(false);
+    }, 400);
+  };
+
+  const next  = () => goTo((current + 1) % slides.length);
+  const prev  = () => goTo((current - 1 + slides.length) % slides.length);
+
+  const resetTimer = () => {
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(next, SLIDE_INTERVAL);
+  };
+
+  useEffect(() => {
+    if (slides.length <= 1) return;
+    timerRef.current = setInterval(next, SLIDE_INTERVAL);
+    return () => clearInterval(timerRef.current);
+  }, [current, slides.length]);
+
+  if (slides.length === 0) {
+    return <div className="absolute inset-0 bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-900" />;
+  }
+
+  const slide = slides[current];
+
+  return (
+    <>
+      {/* Current slide image — cross-fade via opacity */}
+      <div className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${fading ? 'opacity-0' : 'opacity-100'}`}>
+        <img
+          key={slide.id}
+          src={slide.image}
+          alt={slide.caption || `Slide ${current + 1}`}
+          className="w-full h-full object-cover object-center"
+        />
+      </div>
+
+      {/* Gradient overlays for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/50 to-black/10 z-10" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20 z-10" />
+
+      {/* Arrows */}
+      {slides.length > 1 && (
+        <>
+          <button
+            onClick={() => { resetTimer(); prev(); }}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all"
+          >
+            <ChevronLeft className="w-5 h-5 text-white" />
+          </button>
+          <button
+            onClick={() => { resetTimer(); next(); }}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-white/10 hover:bg-white/25 backdrop-blur-sm border border-white/20 flex items-center justify-center transition-all"
+          >
+            <ChevronRight className="w-5 h-5 text-white" />
+          </button>
+        </>
+      )}
+
+      {/* Dot indicators */}
+      {slides.length > 1 && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2">
+          {slides.map((_, idx) => (
+            <button key={idx} onClick={() => { resetTimer(); goTo(idx); }}
+              className={`rounded-full transition-all duration-300 ${idx === current ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40 hover:bg-white/70'}`}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Caption badge */}
+      {slide.caption && (
+        <div className="absolute bottom-6 right-6 z-20 hidden sm:block">
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-xl px-4 py-2 max-w-[220px]">
+            <p className="text-white text-sm font-semibold truncate">{slide.caption}</p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
 const Home = () => {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories]     = useState([]);
+  const [slides, setSlides]             = useState([]);
+  const [slidesLoaded, setSlidesLoaded] = useState(false);
+
+  useEffect(() => {
+    api.get('products/hero-slides/')
+      .then(res => setSlides(res.data ?? []))
+      .catch(() => {})
+      .finally(() => setSlidesLoaded(true));
+  }, []);
 
   useEffect(() => {
     api.get('products/categories/')
@@ -23,31 +125,39 @@ const Home = () => {
     <div className="bg-white dark:bg-zinc-950 min-h-screen">
 
       {/* ── Hero ── */}
-      <section className="bg-gradient-to-b from-gray-50 to-white dark:from-zinc-900 dark:to-zinc-950 border-b border-gray-200 dark:border-white/5">
-        <div className="max-w-5xl mx-auto px-6 py-28 text-center">
-          <span className="inline-block text-accent text-xs font-black uppercase tracking-[0.25em] mb-5">
-            Wholesale Partner Portal
-          </span>
-          <h1 className="text-5xl sm:text-6xl font-black text-gray-900 dark:text-zinc-100 leading-[1.08] tracking-tight mb-6">
-            Discover the<br />
-            <span className="text-accent">Pronoun</span> Collection.
-          </h1>
-          <p className="text-lg text-gray-500 dark:text-zinc-400 max-w-xl mx-auto mb-10 leading-relaxed">
-            Premium wholesale clothing. Designed for modern retail. Built for serious buyers.
-          </p>
-          <div className="flex items-center justify-center gap-4 flex-wrap">
-            <button
-              onClick={() => navigate('/catalog')}
-              className="inline-flex items-center gap-2 bg-accent hover:bg-red-700 text-white font-bold px-8 py-3.5 rounded-full transition-colors text-sm"
-            >
-              Browse Catalog <ArrowRight className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => navigate('/about')}
-              className="inline-flex items-center gap-2 bg-white dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-700 dark:text-zinc-300 hover:border-gray-300 dark:hover:border-white/20 font-bold px-8 py-3.5 rounded-full transition-colors text-sm"
-            >
-              Our Story
-            </button>
+      <section className="relative h-[92vh] min-h-[560px] max-h-[860px] overflow-hidden">
+
+        {slidesLoaded
+          ? <HeroSlideshow slides={slides} />
+          : <div className="absolute inset-0 bg-zinc-900 animate-pulse" />
+        }
+
+        {/* Text always on top */}
+        <div className="relative z-20 h-full flex items-center">
+          <div className="max-w-5xl mx-auto px-6 sm:px-10 w-full">
+            <div className="max-w-2xl">
+              <span className="inline-block text-white/70 text-xs font-black uppercase tracking-[0.25em] mb-5 bg-white/10 backdrop-blur-sm border border-white/20 px-3 py-1.5 rounded-full">
+                Wholesale Partner Portal
+              </span>
+              <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white leading-[1.05] tracking-tight mb-6">
+                Discover the<br />
+                <span className="text-accent">Pronoun</span><br />
+                Collection.
+              </h1>
+              <p className="text-lg text-white/75 max-w-md mb-10 leading-relaxed">
+                Premium wholesale clothing. Designed for modern retail. Built for serious buyers.
+              </p>
+              <div className="flex items-center gap-4 flex-wrap">
+                <button onClick={() => navigate('/catalog')}
+                  className="inline-flex items-center gap-2 bg-accent hover:bg-red-700 text-white font-bold px-8 py-3.5 rounded-full transition-colors text-sm shadow-lg shadow-accent/30">
+                  Browse Catalog <ArrowRight className="w-4 h-4" />
+                </button>
+                <button onClick={() => navigate('/about')}
+                  className="inline-flex items-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/30 text-white font-bold px-8 py-3.5 rounded-full transition-colors text-sm">
+                  Our Story
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -87,11 +197,8 @@ const Home = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {categories.length > 0
             ? categories.map((cat) => (
-                <Link
-                  key={cat.id}
-                  to={`/catalog/${cat.slug}`}
-                  className="group relative bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-gray-200 dark:border-white/5 hover:border-accent/40 hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-                >
+                <Link key={cat.id} to={`/catalog/${cat.slug}`}
+                  className="group relative bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden border border-gray-200 dark:border-white/5 hover:border-accent/40 hover:shadow-md transition-all duration-300 hover:-translate-y-1">
                   {cat.image ? (
                     <div className="h-48 overflow-hidden bg-gray-100 dark:bg-zinc-800">
                       <img src={cat.image} alt={cat.name}
@@ -114,8 +221,7 @@ const Home = () => {
                   </div>
                 </Link>
               ))
-            : /* Skeleton placeholders while loading */
-              Array.from({ length: 6 }).map((_, i) => (
+            : Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="bg-gray-50 dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden animate-pulse">
                   <div className="h-48 bg-gray-100 dark:bg-zinc-800" />
                   <div className="p-5 space-y-2">
