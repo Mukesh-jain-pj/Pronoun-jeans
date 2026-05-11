@@ -91,7 +91,7 @@ const TrackingTimelineModal = ({ order, isOpen, onClose, isAgent = false }) => {
               <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-white/10" />
               <div className="space-y-6">
                 {timeline.map((event, idx) => {
-                  const isFirst = idx === 0;
+                  const isFirst = idx === timeline.length - 1;
                   return (
                     <div key={idx} className="flex gap-4 relative">
                       <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 z-10 ${
