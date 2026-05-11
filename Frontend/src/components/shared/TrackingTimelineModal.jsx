@@ -5,7 +5,6 @@ import api from '../../api/axios';
 const fmt = (ts) => {
   if (!ts) return '';
   try {
-    // Bigship returns DD-MM-YYYY HH:MM:SS — JS Date parses this as MM-DD so we fix manually
     const [datePart, timePart] = ts.split(' ');
     const [dd, mm, yyyy]       = datePart.split('-');
     const iso                  = `${yyyy}-${mm}-${dd}T${timePart}`;
@@ -88,49 +87,37 @@ const TrackingTimelineModal = ({ order, isOpen, onClose, isAgent = false }) => {
             </div>
           ) : (
             <div className="relative">
-              <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-gray-200 dark:bg-white/10" />
+              <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-accent/30" />
               <div className="space-y-6">
-                {timeline.map((event, idx) => {
-                  const isFirst = idx === timeline.length - 1;
-                  return (
-                    <div key={idx} className="flex gap-4 relative">
-                      <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 z-10 ${
-                        isFirst
-                          ? 'bg-accent border-accent'
-                          : 'bg-white dark:bg-zinc-900 border-gray-300 dark:border-zinc-600'
-                      }`}>
-                        {isFirst
-                          ? <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-                          : <div className="w-2 h-2 rounded-full bg-gray-300 dark:bg-zinc-600" />
-                        }
-                      </div>
-                      <div className="flex-1 pb-1">
-                        {/* message is the primary text — more descriptive than status */}
-                        <p className={`text-sm font-bold ${isFirst ? 'text-accent' : 'text-gray-900 dark:text-zinc-100'}`}>
-                          {event.message || event.status || 'Update'}
-                        </p>
-                        {/* status as a small secondary badge */}
-                        {event.status && (
-                          <span className="inline-block mt-1 text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-full">
-                            {event.status}
+                {timeline.map((event, idx) => (
+                  <div key={idx} className="flex gap-4 relative">
+                    <div className="w-6 h-6 rounded-full border-2 bg-accent border-accent flex items-center justify-center shrink-0 mt-0.5 z-10">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="flex-1 pb-1">
+                      <p className="text-sm font-bold text-gray-900 dark:text-zinc-100">
+                        {event.message || event.status || 'Update'}
+                      </p>
+                      {event.status && (
+                        <span className="inline-block mt-1 text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-full">
+                          {event.status}
+                        </span>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 mt-1.5">
+                        {event.location && (
+                          <span className="inline-flex items-center gap-1 text-gray-400 dark:text-zinc-500 text-xs">
+                            <MapPin className="w-3 h-3" />{event.location}
                           </span>
                         )}
-                        <div className="flex flex-wrap items-center gap-3 mt-1.5">
-                          {event.location && (
-                            <span className="inline-flex items-center gap-1 text-gray-400 dark:text-zinc-500 text-xs">
-                              <MapPin className="w-3 h-3" />{event.location}
-                            </span>
-                          )}
-                          {event.timestamp && (
-                            <span className="inline-flex items-center gap-1 text-gray-400 dark:text-zinc-500 text-xs">
-                              <Clock className="w-3 h-3" />{fmt(event.timestamp)}
-                            </span>
-                          )}
-                        </div>
+                        {event.timestamp && (
+                          <span className="inline-flex items-center gap-1 text-gray-400 dark:text-zinc-500 text-xs">
+                            <Clock className="w-3 h-3" />{fmt(event.timestamp)}
+                          </span>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           )}
