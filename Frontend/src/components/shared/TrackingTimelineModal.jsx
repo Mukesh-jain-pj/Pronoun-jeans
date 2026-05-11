@@ -5,7 +5,11 @@ import api from '../../api/axios';
 const fmt = (ts) => {
   if (!ts) return '';
   try {
-    return new Date(ts).toLocaleString('en-IN', {
+    // Bigship returns DD-MM-YYYY HH:MM:SS — JS Date parses this as MM-DD so we fix manually
+    const [datePart, timePart] = ts.split(' ');
+    const [dd, mm, yyyy]       = datePart.split('-');
+    const iso                  = `${yyyy}-${mm}-${dd}T${timePart}`;
+    return new Date(iso).toLocaleString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric',
       hour: '2-digit', minute: '2-digit', hour12: true,
     });
@@ -101,11 +105,15 @@ const TrackingTimelineModal = ({ order, isOpen, onClose, isAgent = false }) => {
                         }
                       </div>
                       <div className="flex-1 pb-1">
+                        {/* message is the primary text — more descriptive than status */}
                         <p className={`text-sm font-bold ${isFirst ? 'text-accent' : 'text-gray-900 dark:text-zinc-100'}`}>
-                          {event.status || 'Update'}
+                          {event.message || event.status || 'Update'}
                         </p>
-                        {event.message && event.message !== event.status && (
-                          <p className="text-gray-600 dark:text-zinc-300 text-sm mt-0.5">{event.message}</p>
+                        {/* status as a small secondary badge */}
+                        {event.status && (
+                          <span className="inline-block mt-1 text-[10px] font-semibold bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 px-2 py-0.5 rounded-full">
+                            {event.status}
+                          </span>
                         )}
                         <div className="flex flex-wrap items-center gap-3 mt-1.5">
                           {event.location && (
