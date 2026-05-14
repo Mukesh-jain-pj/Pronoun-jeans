@@ -6,7 +6,7 @@ import {
   Tag, ReceiptText, Plus, Minus, Trash2,
   Truck, CreditCard, Building, ShieldCheck, Smartphone,
   X, Lock, Unlock, ChevronDown, ChevronUp, Copy, Check,
-  Upload, Hash, Clock, Pencil, Info,
+  Upload, Hash, Clock, Pencil, Info, Package,
 } from 'lucide-react';
 import api from '../api/axios';
 import { useCartStore } from '../store/useCartStore';
@@ -45,6 +45,41 @@ const calcGST = (subtotal, couponPct = 0, upiDiscPct = 0) => {
 const fmt         = (n) => parseFloat(n || 0).toFixed(2);
 const buildUpiUri = (amount, note = 'B2B Order') =>
   `upi://pay?pa=${UPI_ID}&pn=${encodeURIComponent(BUSINESS_NAME)}&am=${fmt(amount)}&cu=INR&tn=${encodeURIComponent(note)}`;
+
+// ── Resolve product images by SKU via catalog search ─────────────────────────
+// Returns a map of { [sku]: imageUrl }
+const resolveProductImages = async (items) => {
+  const imageMap = {};
+  await Promise.allSettled(
+    items.map(async (item) => {
+      const sku = item.variation?.sku;
+      if (!sku) return;
+      try {
+        const res = await api.get(`products/catalog/?search=${encodeURIComponent(sku)}`);
+        const results = res.data?.results ?? res.data ?? [];
+        // Find the product whose variations include this SKU
+        for (const product of results) {
+          const match = product.variations?.find(v => v.sku === sku);
+          if (match) {
+            // Prefer variation-level image, fall back to product-level image
+            imageMap[sku] = match.image || product.image || null;
+            return;
+          }
+          // Looser match: product name matches
+          if (product.image && results.length === 1) {
+            imageMap[sku] = product.image;
+            return;
+          }
+        }
+        // Last resort: just use first result's product image
+        if (results[0]?.image) imageMap[sku] = results[0].image;
+      } catch {
+        // silently fail — image just won't show
+      }
+    })
+  );
+  return imageMap;
+};
 
 // ── Set Breakdown Tooltip ─────────────────────────────────────────────────────
 
@@ -156,26 +191,48 @@ const useQtyUpdate = (showToast, fetchCart) => {
   return { saving, scheduleUpdate };
 };
 
-// ── Cart Row with breakdown tooltip ──────────────────────────────────────────
+// ── Product Image Thumbnail ───────────────────────────────────────────────────
 
-const CartRow = ({ item, index, onQtyChange, saving }) => {
+const ProductThumb = ({ src, alt, className = '' }) => {
+  const [errored, setErrored] = useState(false);
+  if (src && !errored) {
+    return (
+      <img
+        src={src}
+        alt={alt || ''}
+        onError={() => setErrored(true)}
+        className={`object-cover ${className}`}
+      />
+    );
+  }
+  return (
+    <div className={`flex items-center justify-center bg-gray-100 dark:bg-zinc-800 ${className}`}>
+      <Package className="w-5 h-5 text-gray-300 dark:text-zinc-600" />
+    </div>
+  );
+};
+
+// ── Cart Row ──────────────────────────────────────────────────────────────────
+
+const CartRow = ({ item, index, onQtyChange, saving, imageMap }) => {
   const { id, variation, quantity } = item;
   const price = parseFloat(variation?.b2b_price ?? 0);
-  const thumb = variation?.image || variation?.product_image || null;
+  const thumb = imageMap[variation?.sku] ?? null;
+
   return (
     <tr className={`border-b border-gray-100 dark:border-white/5 ${index % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.015]' : 'bg-white dark:bg-transparent'}`}>
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          {thumb ? (
-            <img src={thumb} alt={variation?.product_name || ''} className="w-14 h-14 rounded-xl object-cover shrink-0 border border-gray-100 dark:border-white/5" />
-          ) : (
-            <div className="w-14 h-14 rounded-xl bg-gray-100 dark:bg-zinc-800 shrink-0 flex items-center justify-center">
-              <ShoppingCart className="w-5 h-5 text-gray-300 dark:text-zinc-600" />
-            </div>
-          )}
+          <ProductThumb
+            src={thumb}
+            alt={variation?.product_name}
+            className="w-14 h-14 rounded-xl shrink-0 border border-gray-100 dark:border-white/5"
+          />
           <div>
             <div className="flex items-center gap-1">
-              <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm leading-snug max-w-[200px]">{variation?.product_name ?? '—'}</p>
+              <p className="text-gray-900 dark:text-zinc-100 font-semibold text-sm leading-snug max-w-[200px]">
+                {variation?.product_name ?? '—'}
+              </p>
               <SetBreakdownTooltip breakdown={variation?.set_breakdown} />
             </div>
             <p className="text-gray-400 dark:text-zinc-500 text-xs font-mono mt-0.5">{variation?.sku ?? ''}</p>
@@ -193,7 +250,9 @@ const CartRow = ({ item, index, onQtyChange, saving }) => {
           onIncrement={() => onQtyChange(id, quantity + 1)}
           onDirectChange={(v) => onQtyChange(id, v)} />
       </td>
-      <td className="px-6 py-4 text-gray-900 dark:text-zinc-100 font-bold text-sm whitespace-nowrap">₹{(price * quantity).toFixed(2)}</td>
+      <td className="px-6 py-4 text-gray-900 dark:text-zinc-100 font-bold text-sm whitespace-nowrap">
+        ₹{(price * quantity).toFixed(2)}
+      </td>
       <td className="px-6 py-4">
         <button onClick={() => onQtyChange(id, 0)} className="text-gray-400 hover:text-red-500 transition-colors">
           <Trash2 className="w-4 h-4" />
@@ -702,11 +761,15 @@ const CheckoutPanel = ({
   );
 };
 
+// ── Main Cart Component ───────────────────────────────────────────────────────
+
 const Cart = () => {
   const navigate  = useNavigate();
   const fetchCart = useCartStore((s) => s.fetchCart);
 
   const [items, setItems]                       = useState([]);
+  const [imageMap, setImageMap]                 = useState({});   // { [sku]: imageUrl }
+  const [imagesLoading, setImagesLoading]       = useState(false);
   const [addresses, setAddresses]               = useState([]);
   const [availableCoupons, setAvailableCoupons] = useState([]);
   const [shippingId, setShippingId]             = useState(null);
@@ -733,7 +796,8 @@ const Cart = () => {
       api.get('accounts/addresses/'),
       api.get('orders/coupons/active/'),
     ]).then(([cartRes, addrRes, couponRes]) => {
-      setItems(cartRes.data?.items ?? []);
+      const cartItems = cartRes.data?.items ?? [];
+      setItems(cartItems);
       const addrs = addrRes.data ?? [];
       setAddresses(addrs);
       setAvailableCoupons(couponRes.data?.results ?? couponRes.data ?? []);
@@ -741,6 +805,14 @@ const Cart = () => {
       const defBill = addrs.find(a => a.is_default_billing);
       if (defShip) setShippingId(defShip.id);
       if (defBill) setBillingId(defBill.id);
+
+      // Resolve product images in the background — doesn't block cart display
+      if (cartItems.length > 0) {
+        setImagesLoading(true);
+        resolveProductImages(cartItems)
+          .then(map => setImageMap(map))
+          .finally(() => setImagesLoading(false));
+      }
     }).catch(() => showToast('Failed to load cart.', 'error'))
       .finally(() => setLoading(false));
   }, [showToast]);
@@ -836,9 +908,15 @@ const Cart = () => {
 
         {!success && !loading && items.length > 0 && (
           <div className="space-y-8">
+            {/* Desktop table */}
             <div className="hidden md:block bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
-              <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5">
+              <div className="px-6 py-5 border-b border-gray-100 dark:border-white/5 flex items-center justify-between">
                 <h2 className="text-gray-900 dark:text-zinc-100 font-bold text-lg">Cart Items</h2>
+                {imagesLoading && (
+                  <span className="flex items-center gap-1.5 text-xs text-gray-400 dark:text-zinc-500">
+                    <Loader className="animate-spin w-3 h-3" /> Loading images…
+                  </span>
+                )}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -854,19 +932,33 @@ const Cart = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {items.map((item, idx) => <CartRow key={item.id} item={item} index={idx} onQtyChange={handleQtyChange} saving={saving} />)}
+                    {items.map((item, idx) => (
+                      <CartRow
+                        key={item.id}
+                        item={item}
+                        index={idx}
+                        onQtyChange={handleQtyChange}
+                        saving={saving}
+                        imageMap={imageMap}
+                      />
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
 
+            {/* Mobile cards */}
             <div className="md:hidden space-y-3">
               {items.map(item => {
-                const thumb = item.variation?.image || item.variation?.product_image || null;
+                const thumb = imageMap[item.variation?.sku] ?? null;
                 return (
                   <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
                     <div className="flex gap-3 mb-3">
-                      {thumb ? <img src={thumb} alt="" className="w-16 h-16 rounded-xl object-cover shrink-0" /> : <div className="w-16 h-16 rounded-xl bg-gray-100 dark:bg-zinc-800 shrink-0 flex items-center justify-center"><ShoppingCart className="w-5 h-5 text-gray-300" /></div>}
+                      <ProductThumb
+                        src={thumb}
+                        alt={item.variation?.product_name}
+                        className="w-16 h-16 rounded-xl shrink-0 border border-gray-100 dark:border-white/5"
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="flex justify-between items-start">
                           <div className="flex items-center gap-1">
