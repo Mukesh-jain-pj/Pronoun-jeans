@@ -260,13 +260,9 @@ const ProductDetail = () => {
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        {/* FIX 1: Removed overflow: 'visible' inline style — it was overriding Tailwind's
-            overflow containment and letting the table bleed out of the page bounds. */}
+        {/* overflow:visible removed from here and left col — was the root cause */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* Left col — FIX 2: Removed overflow: 'visible' inline style. The zoom panel
-              uses absolute + z-50 so it escapes the stacking context without needing
-              overflow:visible on its ancestor. */}
           <div className="w-full lg:w-96 xl:w-[420px] shrink-0">
             <ZoomableImage src={mainImage} alt={product.name} />
 
@@ -371,9 +367,7 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          {/* Right col — flex-1 min-w-0 is the key flex shrink guard. Now that the
-              parent no longer has overflow:visible, min-w-0 can do its job and prevent
-              this column from overflowing the page. */}
+          {/* min-w-0 is essential — lets this flex child shrink below its content size */}
           <div className="flex-1 min-w-0 w-full">
             {isAuthenticated ? (
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
@@ -391,24 +385,26 @@ const ProductDetail = () => {
                   <span className="text-xs text-gray-400">Swipe to view full matrix</span>
                 </div>
 
-                {/* FIX 3: Added WebkitOverflowScrolling for smooth momentum scroll on
-                    iOS Safari. The table now scrolls only within this box — the rest
-                    of the page stays locked. */}
+                {/* Table scrolls only within this box — page stays fully locked */}
                 <div className="overflow-x-auto w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
-                  <table className="w-full text-sm min-w-[700px]">
+                  <table className="w-full text-sm min-w-[600px]">
+                    {/*
+                      CHANGES vs previous version:
+                      1. min-w reduced 700px → 600px (less forced width on mid screens)
+                      2. Wholesale Price th: removed "(hover ⓘ for set breakdown)" subtext
+                         — it was the single biggest column-width offender
+                      3. SKU td: added break-all + max-w-[120px] — long hyphenated slugs
+                         now wrap instead of stretching the entire table rightward
+                      4. QTY input: w-14 instead of w-16 — saves 8px per row
+                    */}
                     <thead>
                       <tr className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]">
-                        <th className="text-left px-4 py-3">Size / Color</th>
-                        <th className="text-left px-4 py-3">SKU</th>
-                        <th className="text-left px-4 py-3">
-                          <span className="flex items-center gap-1">
-                            Wholesale Price
-                            <span className="text-gray-400 dark:text-zinc-600 font-normal normal-case tracking-normal text-[10px]">(hover ⓘ for set breakdown)</span>
-                          </span>
-                        </th>
+                        <th className="text-left px-4 py-3 w-36">Size / Color</th>
+                        <th className="text-left px-4 py-3 w-28">SKU</th>
+                        <th className="text-left px-4 py-3">Wholesale Price</th>
                         <th className="text-left px-4 py-3">Per Piece</th>
                         <th className="text-left px-4 py-3">MRP / Piece</th>
-                        <th className="text-left px-4 py-3 w-24">QTY</th>
+                        <th className="text-left px-4 py-3 w-20">QTY</th>
                         <th className="text-left px-4 py-3">Line Total</th>
                       </tr>
                     </thead>
@@ -427,7 +423,8 @@ const ProductDetail = () => {
                               <ColorSwatch hex={v.color_hex || '#CCCCCC'} name={v.color_name || v.color} />
                             </div>
                           </td>
-                          <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs">{v.sku}</td>
+                          {/* break-all: forces long SKU slugs to wrap within the capped column width */}
+                          <td className="px-4 py-3 text-gray-400 dark:text-zinc-500 font-mono text-xs break-all max-w-[120px]">{v.sku}</td>
                           <WholesalePriceCell v={v} />
                           <PerPiecePriceCell v={v} />
                           <MrpPerPieceCell v={v} />
@@ -436,7 +433,7 @@ const ProductDetail = () => {
                               value={quantities[v.id] || ''}
                               onChange={e => handleQtyChange(v.id, e.target.value)}
                               placeholder="0"
-                              className="w-16 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors" />
+                              className="w-14 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-zinc-100 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-accent transition-colors" />
                           </td>
                           <TotalCell v={v} qty={quantities[v.id] || 0} />
                         </tr>
