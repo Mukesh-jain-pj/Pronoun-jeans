@@ -260,10 +260,14 @@ const ProductDetail = () => {
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
-        <div className="flex flex-col lg:flex-row gap-8 items-start" style={{ overflow: 'visible' }}>
+        {/* FIX 1: Removed overflow: 'visible' inline style — it was overriding Tailwind's
+            overflow containment and letting the table bleed out of the page bounds. */}
+        <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* Left */}
-          <div className="w-full lg:w-96 xl:w-[420px] shrink-0" style={{ overflow: 'visible' }}>
+          {/* Left col — FIX 2: Removed overflow: 'visible' inline style. The zoom panel
+              uses absolute + z-50 so it escapes the stacking context without needing
+              overflow:visible on its ancestor. */}
+          <div className="w-full lg:w-96 xl:w-[420px] shrink-0">
             <ZoomableImage src={mainImage} alt={product.name} />
 
             {product.gallery_images?.length > 0 && (
@@ -367,7 +371,9 @@ const ProductDetail = () => {
             </div>
           </div>
 
-          {/* Right */}
+          {/* Right col — flex-1 min-w-0 is the key flex shrink guard. Now that the
+              parent no longer has overflow:visible, min-w-0 can do its job and prevent
+              this column from overflowing the page. */}
           <div className="flex-1 min-w-0 w-full">
             {isAuthenticated ? (
               <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 overflow-hidden shadow-sm">
@@ -385,7 +391,10 @@ const ProductDetail = () => {
                   <span className="text-xs text-gray-400">Swipe to view full matrix</span>
                 </div>
 
-                <div className="overflow-x-auto w-full">
+                {/* FIX 3: Added WebkitOverflowScrolling for smooth momentum scroll on
+                    iOS Safari. The table now scrolls only within this box — the rest
+                    of the page stays locked. */}
+                <div className="overflow-x-auto w-full" style={{ WebkitOverflowScrolling: 'touch' }}>
                   <table className="w-full text-sm min-w-[700px]">
                     <thead>
                       <tr className="text-gray-500 dark:text-zinc-400 text-xs uppercase tracking-widest border-b border-gray-100 dark:border-white/5 bg-gray-50 dark:bg-white/[0.02]">
