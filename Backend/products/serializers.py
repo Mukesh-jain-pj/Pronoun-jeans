@@ -20,10 +20,15 @@ class ProductVariationSerializer(serializers.ModelSerializer):
     color_name        = serializers.SerializerMethodField()
     color_hex         = serializers.SerializerMethodField()
 
+    # Human-readable label, e.g. "L TO 3XL (Set)".
+    # Useful if you ever want to render the display label in the frontend
+    # rather than the raw key.
+    size_display = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model  = ProductVariation
         fields = [
-            'id', 'size', 'color', 'color_name', 'color_hex',
+            'id', 'size', 'size_display', 'color', 'color_name', 'color_hex',
             'sku',
             'set_price',
             'b2b_price',
@@ -31,9 +36,25 @@ class ProductVariationSerializer(serializers.ModelSerializer):
             'mrp',
             'mrp_per_piece',
             'margin_percentage',
-            'set_breakdown',        # Feature 1: size breakdown tooltip
+            'set_breakdown',
             'stock_quantity', 'image',
         ]
+
+    def validate_size(self, value):
+        """
+        Closes the API back door — even if someone bypasses the admin form
+        and POSTs directly to the API, they cannot save an arbitrary string.
+        """
+        valid_keys = {choice[0] for choice in ProductVariation.SIZE_CHOICES}
+        if value not in valid_keys:
+            raise serializers.ValidationError(
+                f"'{value}' is not a valid size. "
+                f"Allowed values: {', '.join(sorted(valid_keys))}"
+            )
+        return value
+
+    def get_size_display(self, obj):
+        return obj.get_size_display()
 
     def get_margin_percentage(self, obj):
         try:

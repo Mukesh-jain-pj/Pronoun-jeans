@@ -69,8 +69,68 @@ class Color(models.Model):
 
 
 class ProductVariation(models.Model):
+
+    # ── Size choices ──────────────────────────────────────────────────────────
+    # SOURCE OF TRUTH for sizes across admin, serializer, and any future form.
+    # To add a new size: append a tuple here, then run makemigrations + migrate.
+    # Stored value (left) = what goes in the DB and the API response.
+    # Display label (right) = what the admin sees in the dropdown.
+    #
+    # AUDIT NOTE (2026-05-15): all existing rows confirmed clean.
+    # Non-standard variants (3-XL, 4-XL, 2-XL, 4-XL TO 5-XL, 28-34, 30-36)
+    # were normalized by fix_sizes_datamigration.py before this migration ran.
+    SIZE_CHOICES = [
+        # ── Standard apparel ──────────────────────────────────────────────────
+        ('XS',            'XS — Extra Small'),
+        ('S',             'S — Small'),
+        ('M',             'M — Medium'),
+        ('L',             'L — Large'),
+        ('XL',            'XL — Extra Large'),
+        ('XXL',           'XXL — Double XL'),
+        ('3XL',           '3XL — Triple XL'),
+        ('4XL',           '4XL — Four XL'),
+        ('5XL',           '5XL — Five XL'),
+        ('FS',            'FS — Free Size'),
+        ('One Size',      'One Size'),
+
+        # ── Numeric / waist sizes ─────────────────────────────────────────────
+        ('28',            '28'),
+        ('30',            '30'),
+        ('32',            '32'),
+        ('34',            '34'),
+        ('36',            '36'),
+        ('38',            '38'),
+        ('40',            '40'),
+        ('42',            '42'),
+        ('44',            '44'),
+
+        # ── Set / range sizes (alphabetical order for readability) ────────────
+        # Apparel sets
+        ('L TO 2XL',      'L TO 2XL (Set)'),
+        ('L TO 3XL',      'L TO 3XL (Set)'),
+        ('L TO 4XL',      'L TO 4XL (Set)'),
+        ('L TO 5XL',      'L TO 5XL (Set)'),
+        ('M TO 3XL',      'M TO 3XL (Set)'),
+        ('M TO 4XL',      'M TO 4XL (Set)'),
+        ('S TO XXL',      'S TO XXL (Set)'),
+        ('4XL TO 5XL',    '4XL TO 5XL (Set)'),
+        # Numeric sets
+        ('28 TO 34',      '28 TO 34 (Set)'),
+        ('28 TO 36',      '28 TO 36 (Set)'),
+        ('30 TO 36',      '30 TO 36 (Set)'),
+        ('30 TO 38',      '30 TO 38 (Set)'),
+        ('32 TO 38',      '32 TO 38 (Set)'),
+    ]
+
     product         = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="variations")
-    size            = models.CharField(max_length=50)
+
+    # max_length=20: longest stored value is '4XL TO 5XL' (10 chars).
+    # Set to 20 for comfortable headroom.
+    size            = models.CharField(
+        max_length=20,
+        choices=SIZE_CHOICES,
+    )
+
     color           = models.CharField(max_length=100, blank=True, null=True)
     color_palette   = models.ForeignKey(
         Color, on_delete=models.SET_NULL, null=True, blank=True, related_name='variations'
@@ -82,7 +142,6 @@ class ProductVariation(models.Model):
     mrp             = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
     mrp_per_piece   = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
-    # Feature 1: size breakdown for sets e.g. "1xL, 2xXL, 1x2XL, 1x3XL"
     set_breakdown   = models.CharField(
         max_length=255, blank=True, null=True,
         help_text='Size breakdown of the set, e.g. "1xL, 2xXL, 1x2XL, 1x3XL"',

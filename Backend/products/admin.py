@@ -1,3 +1,4 @@
+from django import forms
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.urls import reverse
@@ -43,22 +44,43 @@ class HeroSlideAdmin(admin.ModelAdmin):
     preview.short_description = 'Preview'
 
 
+# ── Variation form ────────────────────────────────────────────────────────────
+
+class ProductVariationForm(forms.ModelForm):
+    """
+    Replaces the free-text size input with a strict Select dropdown.
+    Django auto-generates a Select widget when a field has choices=, but
+    TabularInline re-renders its own widgets, so we must explicitly declare
+    the form here and attach it to the inline and the standalone admin page.
+    """
+
+    size = forms.ChoiceField(
+        choices=ProductVariation.SIZE_CHOICES,
+        widget=forms.Select(attrs={'style': 'min-width: 140px;'}),
+    )
+
+    class Meta:
+        model  = ProductVariation
+        fields = '__all__'
+
+
 # ── Inlines ───────────────────────────────────────────────────────────────────
 
 class ProductImageInline(admin.TabularInline):
-    model   = ProductImage
-    extra   = 0
-    fields  = ['image', 'alt_text', 'order']
+    model    = ProductImage
+    extra    = 0
+    fields   = ['image', 'alt_text', 'order']
     ordering = ['order']
 
 
 class ProductVariationInline(admin.TabularInline):
-    model   = ProductVariation
-    extra   = 0
-    fields  = [
+    model           = ProductVariation
+    form            = ProductVariationForm   # ← enforces the dropdown
+    extra           = 0
+    fields          = [
         'size', 'color_palette', 'color', 'sku',
         'b2b_price', 'per_piece_price', 'mrp', 'mrp_per_piece',
-        'stock_quantity', 'image',
+        'set_breakdown', 'stock_quantity', 'image',
     ]
     readonly_fields = ['color']
 
@@ -191,6 +213,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(ProductVariation)
 class ProductVariationAdmin(admin.ModelAdmin):
+    form          = ProductVariationForm   # ← also enforces dropdown on standalone variation page
     list_display  = ['sku', 'product', 'size', 'color', 'b2b_price', 'per_piece_price', 'mrp', 'mrp_per_piece', 'stock_quantity']
     list_filter   = ['product__category', 'size']
     search_fields = ['sku', 'product__name', 'color']
