@@ -16,6 +16,7 @@ import ProductDetail from './pages/ProductDetail';
 import Cart from './pages/Cart';
 import OrderHistory from './pages/OrderHistory';
 import Dashboard from './pages/Dashboard';
+import NotFound from './pages/NotFound';
 
 import AgentDashboard    from './pages/agent/AgentDashboard';
 import AgentBuyers       from './pages/agent/AgentBuyers';
@@ -69,6 +70,8 @@ function App() {
                 <Route path="/cart"                   element={<ProtectedRoute><Cart /></ProtectedRoute>} />
                 <Route path="/history"                element={<ProtectedRoute><OrderHistory /></ProtectedRoute>} />
                 <Route path="/dashboard"              element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                {/* Catch-all — must be last in this inner Routes block */}
+                <Route path="*"                       element={<NotFound />} />
               </Routes>
             </main>
             <Footer />
