@@ -65,9 +65,9 @@ const Footer = () => (
               Pronoun Jeans, Ahmedabad, Gujarat — 380001
             </li>
             <li>
-              <a href="tel:+919876543210" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
+              <a href="tel:+919375043100" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
                 <Phone className="w-4 h-4 text-accent shrink-0" />
-                +91 98765 43210
+                +91 93750 43100
               </a>
             </li>
             <li>

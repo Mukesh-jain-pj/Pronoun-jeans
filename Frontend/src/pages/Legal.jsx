@@ -128,7 +128,7 @@ const Legal = ({ page = 'terms' }) => {
               <a href="mailto:wholesale@pronoun.in" className="text-accent hover:underline font-semibold">
                 wholesale@pronoun.in
               </a>{' '}
-              or call <a href="tel:+919876543210" className="text-accent hover:underline font-semibold">+91 98765 43210</a>.
+              or call <a href="tel:+919375043100" className="text-accent hover:underline font-semibold">+91 93750 43100</a>.
             </p>
           </div>
         </main>
