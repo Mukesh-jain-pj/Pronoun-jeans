@@ -71,9 +71,9 @@ const Footer = () => (
               </a>
             </li>
             <li>
-              <a href="mailto:wholesale@pronoun.in" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
+              <a href="mailto:pronoun.india@gmail.com" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
                 <Mail className="w-4 h-4 text-accent shrink-0" />
-                wholesale@pronoun.in
+                pronoun.india@gmail.com
               </a>
             </li>
           </ul>
