@@ -50,9 +50,12 @@ class HeroSlideAdmin(admin.ModelAdmin):
 # ── Size Set Admin ────────────────────────────────────────────────────────────
 
 class SizeSetBreakdownInline(admin.TabularInline):
-    model  = SizeSetBreakdown
-    extra  = 1
-    fields = ['label', 'breakdown_string']
+    model         = SizeSetBreakdown
+    extra         = 1
+    fields        = ['label', 'breakdown_string']
+    # Jazzmin puts inlines on a separate tab by default.
+    # Setting tab=None or using show_change_link=False keeps it on the main tab.
+    show_change_link = False
 
 
 @admin.register(SizeSet)
@@ -62,11 +65,18 @@ class SizeSetAdmin(admin.ModelAdmin):
     ordering      = ['order', 'name']
     inlines       = [SizeSetBreakdownInline]
 
+    # Jazzmin uses fieldsets to control tab grouping.
+    # Putting everything in one fieldset with no title keeps it all on General tab.
+    fieldsets = (
+        (None, {
+            'fields': ('name', 'is_active', 'order'),
+        }),
+    )
+
     def breakdown_count(self, obj):
         return obj.breakdowns.count()
     breakdown_count.short_description = 'Breakdowns'
 
-    # ── JS loads on the SizeSet add/edit page ─────────────────────────────
     class Media:
         js = ('admin/js/set_breakdown_builder.js',)
 
