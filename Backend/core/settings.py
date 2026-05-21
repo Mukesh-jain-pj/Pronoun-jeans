@@ -15,7 +15,6 @@ DEBUG      = env('DEBUG')
 ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
 
 INSTALLED_APPS = [
-    'jazzmin',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -145,3 +144,7 @@ BIGSHIP_ACCESS_KEY = env('BIGSHIP_ACCESS_KEY', default='')
 
 RAZORPAY_KEY_ID     = env('RAZORPAY_KEY_ID',     default='')
 RAZORPAY_KEY_SECRET = env('RAZORPAY_KEY_SECRET', default='')
+
+# ── Custom Admin ──────────────────────────────────────────────────────────────
+# Point Django admin to our custom AdminSite subclass
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'

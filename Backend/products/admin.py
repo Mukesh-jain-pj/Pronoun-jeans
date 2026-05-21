@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib import admin, messages
+from django.contrib.admin import AdminSite
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 from django.utils.text import slugify
@@ -28,10 +29,20 @@ def _unique_sku(base_sku):
     return sku
 
 
+# ── Inject custom CSS globally into every admin page ─────────────────────────
+# This replaces Jazzmin's styling with our own clean design.
+# The CSS file lives at products/static/admin/css/admin_custom.css
+
+class GlobalMediaMixin:
+    """Mixin that injects our custom CSS on every ModelAdmin page."""
+    class Media:
+        css = {'all': ('admin/css/admin_custom.css',)}
+
+
 # ── Hero Slides ───────────────────────────────────────────────────────────────
 
 @admin.register(HeroSlide)
-class HeroSlideAdmin(admin.ModelAdmin):
+class HeroSlideAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display  = ['__str__', 'order', 'is_active', 'preview']
     list_editable = ['order', 'is_active']
     ordering      = ['order', 'id']
@@ -51,39 +62,29 @@ class HeroSlideAdmin(admin.ModelAdmin):
 
 class SizeSetBreakdownInline(admin.TabularInline):
     """
-    Kept purely for Django's management form (TOTAL_FORMS, hidden inputs etc).
-    The visual UI is replaced by the custom JS builder injected on the General tab.
-    The tab itself is hidden via CSS injected in SizeSetAdmin.Media.
+    Without Jazzmin, Django renders inlines directly on the same page —
+    no tabs, no separation. This inline appears right below the SizeSet
+    fields on the same page, exactly as intended.
     """
-    model  = SizeSetBreakdown
-    extra  = 1
-    fields = ['label', 'breakdown_string']
+    model   = SizeSetBreakdown
+    extra   = 1
+    fields  = ['label', 'breakdown_string']
 
 
 @admin.register(SizeSet)
-class SizeSetAdmin(admin.ModelAdmin):
+class SizeSetAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display  = ['name', 'is_active', 'order', 'breakdown_count']
     list_editable = ['is_active', 'order']
     ordering      = ['order', 'name']
     inlines       = [SizeSetBreakdownInline]
-
-    fieldsets = (
-        (None, {
-            'fields': ('name', 'is_active', 'order'),
-        }),
-    )
 
     def breakdown_count(self, obj):
         return obj.breakdowns.count()
     breakdown_count.short_description = 'Breakdowns'
 
     class Media:
+        css = {'all': ('admin/css/admin_custom.css',)}
         js  = ('admin/js/set_breakdown_builder.js',)
-        css = {
-            # Hide the "Size Set Breakdowns" tab that Jazzmin auto-generates
-            # The inline still exists for form submission — just not visible as a tab
-            'all': ('admin/css/sizeset_hide_tab.css',),
-        }
 
 
 # ── Variation Form ────────────────────────────────────────────────────────────
@@ -140,7 +141,8 @@ class ProductVariationInline(admin.TabularInline):
     readonly_fields = ['color']
 
     class Media:
-        js = ('admin/js/set_breakdown_builder.js',)
+        css = {'all': ('admin/css/admin_custom.css',)}
+        js  = ('admin/js/set_breakdown_builder.js',)
 
 
 # ── Clone action ──────────────────────────────────────────────────────────────
@@ -220,7 +222,7 @@ def clone_products(modeladmin, request, queryset):
 # ── Other Admin Registrations ─────────────────────────────────────────────────
 
 @admin.register(Color)
-class ColorAdmin(admin.ModelAdmin):
+class ColorAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display  = ['name', 'hex_code', 'swatch']
     search_fields = ['name']
     ordering      = ['name']
@@ -236,14 +238,14 @@ class ColorAdmin(admin.ModelAdmin):
 
 
 @admin.register(Category)
-class CategoryAdmin(admin.ModelAdmin):
+class CategoryAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display        = ['name', 'slug']
     search_fields       = ['name', 'slug']
     prepopulated_fields = {'slug': ('name',)}
 
 
 @admin.register(ProductImage)
-class ProductImageAdmin(admin.ModelAdmin):
+class ProductImageAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display  = ['product', 'alt_text', 'order']
     list_filter   = ['product']
     search_fields = ['product__name', 'alt_text']
@@ -251,7 +253,7 @@ class ProductImageAdmin(admin.ModelAdmin):
 
 
 @admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
+class ProductAdmin(GlobalMediaMixin, admin.ModelAdmin):
     list_display        = ['name', 'category', 'is_active', 'moq', 'created_at']
     list_filter         = ['is_active', 'category']
     search_fields       = ['name', 'slug']
@@ -271,7 +273,7 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 @admin.register(ProductVariation)
-class ProductVariationAdmin(admin.ModelAdmin):
+class ProductVariationAdmin(GlobalMediaMixin, admin.ModelAdmin):
     form          = ProductVariationForm
     list_display  = ['sku', 'product', 'size_set', 'color', 'b2b_price', 'per_piece_price', 'mrp', 'mrp_per_piece', 'stock_quantity']
     list_filter   = ['product__category', 'size_set']
