@@ -1,6 +1,5 @@
 /* ============================================================
-   Pronoun Jeans Admin — Custom CSS
-   Works alongside Django's CSS variable system
+   Pronoun Jeans Admin — Refined Light Theme v3
    ============================================================ */
 
 /* ── Font ─────────────────────────────────────────────────── */
@@ -9,69 +8,73 @@ body, input, select, textarea, button {
   -webkit-font-smoothing: antialiased !important;
 }
 
-/* ── Force light backgrounds everywhere ───────────────────── */
-body,
-#main,
-#content,
-#content-main,
-#content-related,
-.content-title {
-  background-color: #f4f6f9 !important;
-  color: #1a1f36 !important;
+/* ── Kill black bar above header ──────────────────────────── */
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  background: #f4f6f9 !important;
+  color: #1e293b !important;
 }
 
 /* ── Header ───────────────────────────────────────────────── */
 #header {
   background: #dc2626 !important;
-  height: 56px !important;
-  padding: 0 28px !important;
+  height: 54px !important;
+  padding: 0 24px !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.12) !important;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15) !important;
+  margin: 0 !important;
+  border: none !important;
 }
 
 #header #branding h1,
 #header #branding h1 a,
 #header #branding h1 a:link,
 #header #branding h1 a:visited {
-  color: #ffffff !important;
-  font-size: 16px !important;
+  color: #fff !important;
+  font-size: 15px !important;
   font-weight: 600 !important;
   letter-spacing: -0.2px !important;
   text-decoration: none !important;
+  margin: 0 !important;
 }
 
 #header #user-tools,
 #header #user-tools a,
+#header #user-tools a:link,
 #header #user-tools a:visited {
-  color: rgba(255,255,255,0.9) !important;
-  font-size: 13px !important;
+  color: rgba(255,255,255,0.88) !important;
+  font-size: 12.5px !important;
   font-weight: 500 !important;
   text-decoration: none !important;
 }
 
+#header #user-tools a { color: #fff !important; }
+#header #user-tools a:hover { opacity: 0.8 !important; }
+
 /* Hide dark mode toggle */
-#header input[type="checkbox"],
+button.theme-toggle,
 .theme-toggle,
-#header label[for*="theme"],
-button[aria-label*="theme"],
-button[aria-label*="color"] {
+[aria-label*="theme"],
+[aria-label*="color"] {
   display: none !important;
 }
 
 /* ── Breadcrumbs ──────────────────────────────────────────── */
 div.breadcrumbs {
-  background: #ffffff !important;
-  color: #6b7280 !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  padding: 9px 28px !important;
+  background: #fff !important;
+  color: #64748b !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  padding: 8px 24px !important;
   font-size: 12.5px !important;
+  margin: 0 !important;
 }
 
 div.breadcrumbs a,
 div.breadcrumbs a:visited {
-  color: #374151 !important;
+  color: #475569 !important;
   font-weight: 500 !important;
   text-decoration: none !important;
 }
@@ -80,16 +83,16 @@ div.breadcrumbs a:hover { color: #dc2626 !important; }
 
 /* ── Sidebar ──────────────────────────────────────────────── */
 #nav-sidebar,
-#nav-sidebar .sticky,
-.sticky {
-  background: #ffffff !important;
-  border-right: 1px solid #e5e7eb !important;
+#nav-sidebar .sticky {
+  background: #fff !important;
+  border-right: 1px solid #e2e8f0 !important;
+  min-height: 100% !important;
 }
 
 .toggle-nav-sidebar {
-  background: #ffffff !important;
-  border-right: 1px solid #e5e7eb !important;
-  color: #9ca3af !important;
+  background: #fff !important;
+  border-right: 1px solid #e2e8f0 !important;
+  color: #94a3b8 !important;
 }
 
 #nav-sidebar .module {
@@ -100,50 +103,88 @@ div.breadcrumbs a:hover { color: #dc2626 !important; }
   padding: 0 !important;
 }
 
+/* App group labels */
 #nav-sidebar .module caption,
 #nav-sidebar .module th {
   background: transparent !important;
-  color: #9ca3af !important;
+  color: #94a3b8 !important;
   font-size: 10px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.1em !important;
-  padding: 16px 16px 5px !important;
+  padding: 16px 16px 4px !important;
   border: none !important;
+  display: block !important;
 }
 
 #nav-sidebar a,
 #nav-sidebar a:link,
 #nav-sidebar a:visited {
-  color: #374151 !important;
+  color: #475569 !important;
   font-size: 13px !important;
   font-weight: 500 !important;
-  padding: 6px 16px !important;
+  padding: 5px 16px !important;
   display: block !important;
   text-decoration: none !important;
   text-transform: none !important;
-  transition: background 0.12s, color 0.12s !important;
+  border-radius: 0 !important;
+  transition: all 0.1s !important;
 }
 
 #nav-sidebar a:hover {
   color: #dc2626 !important;
-  background: #fff5f5 !important;
+  background: #fef2f2 !important;
 }
 
-#nav-sidebar .current-app a {
+#nav-sidebar .current-app a,
+#nav-sidebar .current-app a:link,
+#nav-sidebar .current-app a:visited {
   color: #dc2626 !important;
   font-weight: 600 !important;
 }
 
-/* ── Module / Cards ───────────────────────────────────────── */
+/* Search in sidebar */
+#nav-sidebar input[type="search"],
+#nav-sidebar input[type="text"] {
+  background: #f8fafc !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 6px !important;
+  color: #1e293b !important;
+  margin: 8px 12px !important;
+  width: calc(100% - 24px) !important;
+  padding: 6px 10px !important;
+  font-size: 12.5px !important;
+}
+
+/* ── Main content ─────────────────────────────────────────── */
+#main,
+#content,
+#content-main {
+  background: #f4f6f9 !important;
+  color: #1e293b !important;
+}
+
+#content {
+  padding: 24px !important;
+}
+
+#content h1 {
+  font-size: 20px !important;
+  font-weight: 700 !important;
+  color: #1e293b !important;
+  margin: 0 0 20px !important;
+  letter-spacing: -0.3px !important;
+}
+
+/* ── Cards / Modules ──────────────────────────────────────── */
 .module,
 fieldset.module {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 10px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
   overflow: hidden !important;
-  margin-bottom: 18px !important;
+  margin-bottom: 16px !important;
   padding: 0 !important;
 }
 
@@ -152,41 +193,37 @@ fieldset.module h2,
 fieldset legend,
 .module caption {
   background: #f8fafc !important;
-  color: #6b7280 !important;
-  font-size: 10px !important;
+  color: #64748b !important;
+  font-size: 10.5px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.09em !important;
-  padding: 12px 20px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  letter-spacing: 0.08em !important;
+  padding: 11px 20px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   margin: 0 !important;
   width: auto !important;
 }
 
-/* Dashboard app list rows */
+/* Dashboard model table rows */
 .module table {
   width: 100% !important;
   border-collapse: collapse !important;
 }
 
-.module table tr {
-  border-bottom: 1px solid #e5e7eb !important;
-}
-
+.module table tr { border-bottom: 1px solid #e2e8f0 !important; }
 .module table tr:last-child { border-bottom: none !important; }
-
 .module table td {
-  padding: 10px 20px !important;
+  padding: 9px 20px !important;
   font-size: 13px !important;
-  color: #1a1f36 !important;
-  background: #ffffff !important;
+  color: #1e293b !important;
+  background: #fff !important;
 }
 
-.module table tr:hover td { background: #f9fafb !important; }
+.module table tr:hover td { background: #f8fafc !important; }
 
 .module table td a,
 .module table td a:visited {
-  color: #1a1f36 !important;
+  color: #1e293b !important;
   font-weight: 500 !important;
   text-decoration: none !important;
 }
@@ -202,9 +239,9 @@ fieldset legend,
 
 /* ── Form rows ────────────────────────────────────────────── */
 .form-row {
-  padding: 14px 20px !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  background: #ffffff !important;
+  padding: 13px 20px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  background: #fff !important;
   display: flex !important;
   align-items: flex-start !important;
   gap: 12px !important;
@@ -213,7 +250,7 @@ fieldset legend,
 .form-row:last-child { border-bottom: none !important; }
 
 label {
-  color: #1a1f36 !important;
+  color: #1e293b !important;
   font-weight: 600 !important;
   font-size: 13px !important;
 }
@@ -225,15 +262,14 @@ input[type="email"],
 input[type="password"],
 input[type="url"],
 input[type="tel"],
-input[type="search"],
 input[type="date"],
 textarea,
 select {
-  background: #ffffff !important;
-  color: #1a1f36 !important;
-  border: 1px solid #d1d5db !important;
-  border-radius: 7px !important;
-  padding: 7px 11px !important;
+  background: #fff !important;
+  color: #1e293b !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 6px 10px !important;
   font-size: 13px !important;
   font-family: 'Inter', system-ui, sans-serif !important;
   outline: none !important;
@@ -245,29 +281,62 @@ input[type="number"]:focus,
 textarea:focus,
 select:focus {
   border-color: #dc2626 !important;
-  box-shadow: 0 0 0 3px rgba(220,38,38,0.08) !important;
+  box-shadow: 0 0 0 3px rgba(220,38,38,0.07) !important;
 }
 
 input[readonly], input[disabled] {
-  background: #f9fafb !important;
-  color: #9ca3af !important;
+  background: #f8fafc !important;
+  color: #94a3b8 !important;
   cursor: not-allowed !important;
+  border-color: #e2e8f0 !important;
 }
 
+/* Fix checkboxes — make them round and styled */
 input[type="checkbox"] {
-  accent-color: #dc2626 !important;
-  width: 15px !important;
-  height: 15px !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  width: 16px !important;
+  height: 16px !important;
+  border: 2px solid #cbd5e1 !important;
+  border-radius: 4px !important;
+  background: #fff !important;
+  cursor: pointer !important;
+  position: relative !important;
+  flex-shrink: 0 !important;
+  transition: all 0.12s !important;
+}
+
+input[type="checkbox"]:checked {
+  background: #dc2626 !important;
+  border-color: #dc2626 !important;
+}
+
+input[type="checkbox"]:checked::after {
+  content: '' !important;
+  position: absolute !important;
+  left: 3px !important;
+  top: 0px !important;
+  width: 5px !important;
+  height: 9px !important;
+  border: 2px solid #fff !important;
+  border-top: none !important;
+  border-left: none !important;
+  transform: rotate(45deg) !important;
+}
+
+input[type="checkbox"]:hover {
+  border-color: #dc2626 !important;
 }
 
 /* ── Buttons ──────────────────────────────────────────────── */
 .submit-row {
   background: #f8fafc !important;
-  border-top: 1px solid #e5e7eb !important;
-  padding: 14px 20px !important;
+  border-top: 1px solid #e2e8f0 !important;
+  padding: 13px 20px !important;
   display: flex !important;
   gap: 10px !important;
   align-items: center !important;
+  flex-wrap: wrap !important;
   border-radius: 0 0 10px 10px !important;
 }
 
@@ -275,7 +344,7 @@ input[type="submit"],
 .button,
 a.button {
   background: #dc2626 !important;
-  color: #ffffff !important;
+  color: #fff !important;
   border: none !important;
   border-radius: 7px !important;
   padding: 8px 18px !important;
@@ -284,41 +353,38 @@ a.button {
   cursor: pointer !important;
   text-decoration: none !important;
   display: inline-block !important;
+  line-height: 1.5 !important;
   transition: background 0.15s !important;
   font-family: 'Inter', system-ui, sans-serif !important;
-  line-height: 1.5 !important;
+  letter-spacing: 0.01em !important;
 }
 
 input[type="submit"]:hover,
 .button:hover,
-a.button:hover {
-  background: #b91c1c !important;
-}
+a.button:hover { background: #b91c1c !important; }
 
-.deletelink,
-a.deletelink {
+.deletelink, a.deletelink {
   background: transparent !important;
   color: #dc2626 !important;
   border: 1.5px solid #fca5a5 !important;
   margin-left: auto !important;
 }
 
-.deletelink:hover,
-a.deletelink:hover {
-  background: #fff5f5 !important;
+.deletelink:hover, a.deletelink:hover {
+  background: #fef2f2 !important;
   border-color: #dc2626 !important;
 }
 
 /* ── Change list ──────────────────────────────────────────── */
 #changelist {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 10px !important;
   overflow: hidden !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
-.results { background: #ffffff !important; }
+.results { background: #fff !important; }
 
 #result_list {
   width: 100% !important;
@@ -328,39 +394,32 @@ a.deletelink:hover {
 #result_list thead th,
 #result_list thead td {
   background: #f8fafc !important;
-  color: #6b7280 !important;
+  color: #64748b !important;
   font-size: 11px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.07em !important;
-  padding: 11px 16px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   border-right: none !important;
   border-left: none !important;
   border-top: none !important;
+  white-space: nowrap !important;
 }
 
 #result_list thead th a,
-#result_list thead th a:visited {
-  color: #6b7280 !important;
-  text-decoration: none !important;
-}
-
+#result_list thead th a:visited { color: #64748b !important; text-decoration: none !important; }
 #result_list thead th a:hover { color: #dc2626 !important; }
 
-#result_list tbody tr {
-  border-bottom: 1px solid #e5e7eb !important;
-  transition: background 0.08s !important;
-}
-
+#result_list tbody tr { border-bottom: 1px solid #f1f5f9 !important; transition: background 0.08s !important; }
 #result_list tbody tr:last-child { border-bottom: none !important; }
-#result_list tbody tr:hover { background: #f9fafb !important; }
+#result_list tbody tr:hover { background: #f8fafc !important; }
 
 #result_list tbody td,
 #result_list tbody th {
-  padding: 11px 16px !important;
+  padding: 10px 16px !important;
   font-size: 13px !important;
-  color: #1a1f36 !important;
+  color: #1e293b !important;
   background: transparent !important;
   border: none !important;
   vertical-align: middle !important;
@@ -373,61 +432,70 @@ a.deletelink:hover {
   text-decoration: none !important;
 }
 
+/* Editable inputs inside list rows */
+#result_list input[type="text"],
+#result_list input[type="number"],
+#result_list select {
+  max-width: 100px !important;
+  padding: 4px 8px !important;
+  font-size: 12px !important;
+}
+
 /* ── Inline groups ────────────────────────────────────────── */
 .inline-group {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 10px !important;
   overflow: hidden !important;
-  margin-bottom: 18px !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05) !important;
+  margin-bottom: 16px !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
 .inline-group h2 {
   background: #f8fafc !important;
-  color: #6b7280 !important;
-  font-size: 10px !important;
+  color: #64748b !important;
+  font-size: 10.5px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.09em !important;
-  padding: 11px 16px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  letter-spacing: 0.08em !important;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   margin: 0 !important;
 }
 
 .inline-group table {
   width: 100% !important;
   border-collapse: collapse !important;
-  background: #ffffff !important;
+  background: #fff !important;
 }
 
 .inline-group table thead th {
   background: #f8fafc !important;
-  color: #6b7280 !important;
+  color: #64748b !important;
   font-size: 11px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.06em !important;
-  padding: 9px 14px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  padding: 8px 14px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   border-right: none !important;
 }
 
 .inline-group table tbody td {
-  padding: 9px 14px !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  color: #1a1f36 !important;
-  background: #ffffff !important;
+  padding: 8px 14px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  color: #1e293b !important;
+  background: #fff !important;
   font-size: 13px !important;
   vertical-align: middle !important;
 }
 
 .inline-group table tbody tr:last-child td { border-bottom: none !important; }
-.inline-group table tbody tr:hover td { background: #f9fafb !important; }
+.inline-group table tbody tr:hover td { background: #f8fafc !important; }
 
 .add-row {
-  background: #ffffff !important;
-  border-top: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  border-top: 1px solid #e2e8f0 !important;
 }
 
 .add-row a, .add-row a:visited {
@@ -437,14 +505,79 @@ a.deletelink:hover {
   padding: 10px 16px !important;
   display: block !important;
   text-decoration: none !important;
+  transition: background 0.1s !important;
 }
 
-.add-row a:hover { background: #fff5f5 !important; }
+.add-row a:hover { background: #fef2f2 !important; }
+
+/* ── Actions bar ──────────────────────────────────────────── */
+.actions {
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  padding: 9px 14px !important;
+  margin-bottom: 12px !important;
+  color: #475569 !important;
+  font-size: 13px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  flex-wrap: wrap !important;
+}
+
+/* ── Filters ──────────────────────────────────────────────── */
+#changelist-filter {
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 10px !important;
+  overflow: hidden !important;
+}
+
+#changelist-filter h2 {
+  background: #f8fafc !important;
+  color: #64748b !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  padding: 10px 14px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  margin: 0 !important;
+}
+
+#changelist-filter h3 {
+  color: #64748b !important;
+  font-size: 10.5px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  padding: 12px 14px 4px !important;
+  margin: 0 !important;
+}
+
+#changelist-filter ul { list-style: none !important; padding: 0 !important; margin: 0 0 8px !important; }
+
+#changelist-filter ul li a,
+#changelist-filter ul li a:visited {
+  display: block !important;
+  padding: 5px 14px !important;
+  font-size: 13px !important;
+  color: #475569 !important;
+  text-decoration: none !important;
+  transition: all 0.1s !important;
+}
+
+#changelist-filter ul li a:hover,
+#changelist-filter ul li.selected a {
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+  background: #fef2f2 !important;
+}
 
 /* ── Messages ─────────────────────────────────────────────── */
-.messagelist { padding: 0 28px 16px !important; margin: 0 !important; }
+.messagelist { padding: 0 24px 14px !important; margin: 0 !important; }
 .messagelist li {
-  padding: 11px 16px !important;
+  padding: 10px 16px !important;
   border-radius: 8px !important;
   margin-bottom: 8px !important;
   font-size: 13px !important;
@@ -452,18 +585,18 @@ a.deletelink:hover {
   list-style: none !important;
 }
 .messagelist li.success { background: #f0fdf4 !important; border: 1px solid #bbf7d0 !important; color: #15803d !important; }
-.messagelist li.error { background: #fff5f5 !important; border: 1px solid #fca5a5 !important; color: #b91c1c !important; }
+.messagelist li.error { background: #fef2f2 !important; border: 1px solid #fca5a5 !important; color: #b91c1c !important; }
 .messagelist li.warning { background: #fffbeb !important; border: 1px solid #fde68a !important; color: #92400e !important; }
 
-/* ── Errors ───────────────────────────────────────────────── */
+/* ── Error notes ──────────────────────────────────────────── */
 .errornote {
-  background: #fff5f5 !important;
+  background: #fef2f2 !important;
   border: 1px solid #fca5a5 !important;
   border-radius: 8px !important;
   color: #b91c1c !important;
-  padding: 12px 16px !important;
+  padding: 11px 16px !important;
   font-size: 13px !important;
-  margin-bottom: 16px !important;
+  margin-bottom: 14px !important;
 }
 
 ul.errorlist { margin: 4px 0 0 !important; padding: 0 !important; }
@@ -477,18 +610,18 @@ ul.errorlist li {
 /* ── Help text ────────────────────────────────────────────── */
 .help, p.help {
   font-size: 12px !important;
-  color: #6b7280 !important;
-  margin-top: 4px !important;
+  color: #64748b !important;
+  margin-top: 3px !important;
   background: transparent !important;
 }
 
 /* ── Paginator ────────────────────────────────────────────── */
 .paginator {
-  background: #ffffff !important;
-  border-top: 1px solid #e5e7eb !important;
-  padding: 12px 16px !important;
+  background: #fff !important;
+  border-top: 1px solid #e2e8f0 !important;
+  padding: 11px 16px !important;
   font-size: 13px !important;
-  color: #6b7280 !important;
+  color: #64748b !important;
 }
 
 .paginator a, .paginator a:visited {
@@ -497,99 +630,51 @@ ul.errorlist li {
   text-decoration: none !important;
 }
 
-/* ── Actions ──────────────────────────────────────────────── */
-.actions {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 8px !important;
-  padding: 10px 16px !important;
-  margin-bottom: 14px !important;
-  color: #374151 !important;
-  font-size: 13px !important;
-}
-
-/* ── Filters ──────────────────────────────────────────────── */
-#changelist-filter {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 10px !important;
-  overflow: hidden !important;
-}
-
-#changelist-filter h2 {
-  background: #f8fafc !important;
-  color: #6b7280 !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.09em !important;
-  padding: 11px 16px !important;
-  border-bottom: 1px solid #e5e7eb !important;
-  margin: 0 !important;
-}
-
-#changelist-filter h3 {
-  color: #6b7280 !important;
-  font-size: 10px !important;
-  font-weight: 700 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-  padding: 12px 16px 4px !important;
-  margin: 0 !important;
-}
-
-#changelist-filter ul { list-style: none !important; padding: 0 !important; margin: 0 0 8px !important; }
-#changelist-filter ul li a, #changelist-filter ul li a:visited {
-  display: block !important;
-  padding: 6px 16px !important;
-  font-size: 13px !important;
-  color: #374151 !important;
-  text-decoration: none !important;
-}
-#changelist-filter ul li a:hover,
-#changelist-filter ul li.selected a {
-  color: #dc2626 !important;
-  font-weight: 600 !important;
-  background: #fff5f5 !important;
-}
-
 /* ── Object tools ─────────────────────────────────────────── */
-ul.object-tools { list-style: none !important; padding: 0 !important; margin: 0 0 16px !important; display: flex !important; gap: 8px !important; }
+ul.object-tools {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 0 16px !important;
+  display: flex !important;
+  gap: 8px !important;
+}
+
 ul.object-tools li a, ul.object-tools li a:visited {
-  background: #1a1f36 !important;
+  background: #1e293b !important;
   color: #fff !important;
   border-radius: 7px !important;
   padding: 6px 14px !important;
   font-size: 12px !important;
   font-weight: 600 !important;
   text-decoration: none !important;
-  letter-spacing: 0.02em !important;
   transition: background 0.15s !important;
 }
+
 ul.object-tools li a:hover { background: #dc2626 !important; }
 
 /* ── Recent actions ───────────────────────────────────────── */
 #recent-actions-module {
-  background: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
   border-radius: 10px !important;
   overflow: hidden !important;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
 }
 
 #recent-actions-module h2 {
   background: #f8fafc !important;
-  color: #6b7280 !important;
-  font-size: 10px !important;
+  color: #64748b !important;
+  font-size: 10.5px !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.09em !important;
-  padding: 11px 16px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  letter-spacing: 0.08em !important;
+  padding: 10px 16px !important;
+  border-bottom: 1px solid #e2e8f0 !important;
   margin: 0 !important;
 }
 
 #recent-actions-module h3 {
-  color: #6b7280 !important;
+  color: #64748b !important;
   font-size: 11px !important;
   padding: 10px 16px 2px !important;
   margin: 0 !important;
@@ -597,30 +682,46 @@ ul.object-tools li a:hover { background: #dc2626 !important; }
 }
 
 #recent-actions-module ul { list-style: none !important; padding: 0 !important; margin: 0 !important; }
+
 #recent-actions-module ul li {
-  padding: 9px 16px !important;
-  border-bottom: 1px solid #e5e7eb !important;
+  padding: 8px 16px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
   font-size: 13px !important;
-  color: #1a1f36 !important;
+  color: #1e293b !important;
 }
+
 #recent-actions-module ul li:last-child { border-bottom: none !important; }
-#recent-actions-module ul li a, #recent-actions-module ul li a:visited {
-  color: #374151 !important;
+
+#recent-actions-module ul li a,
+#recent-actions-module ul li a:visited {
+  color: #334155 !important;
   font-weight: 500 !important;
   text-decoration: none !important;
 }
+
 #recent-actions-module ul li a:hover { color: #dc2626 !important; }
-.mini .byline { color: #6b7280 !important; font-size: 11px !important; }
+.mini .byline { color: #94a3b8 !important; font-size: 11px !important; }
 
 /* ── Search ───────────────────────────────────────────────── */
+#changelist-search {
+  background: #fff !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  padding: 9px 14px !important;
+  margin-bottom: 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
 #searchbar {
-  border: 1px solid #d1d5db !important;
-  border-radius: 7px !important;
-  padding: 7px 12px !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 6px 11px !important;
   font-size: 13px !important;
   background: #fff !important;
-  color: #1a1f36 !important;
-  min-width: 240px !important;
+  color: #1e293b !important;
+  min-width: 220px !important;
 }
 
 #searchbar:focus {
@@ -629,10 +730,49 @@ ul.object-tools li a:hover { background: #dc2626 !important; }
   box-shadow: 0 0 0 3px rgba(220,38,38,0.07) !important;
 }
 
-/* ── General link colors ──────────────────────────────────── */
-a, a:link, a:visited { color: #dc2626 !important; text-decoration: none !important; }
-a:hover { color: #b91c1c !important; }
+/* ── ADD button on list pages ─────────────────────────────── */
+.addlink,
+a.addlink {
+  background: #dc2626 !important;
+  color: #fff !important;
+  border-radius: 7px !important;
+  padding: 7px 16px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  text-decoration: none !important;
+  display: inline-block !important;
+  transition: background 0.15s !important;
+}
+
+.addlink:hover, a.addlink:hover { background: #b91c1c !important; }
 
 /* ── Misc ─────────────────────────────────────────────────── */
 fieldset.collapse { display: block !important; }
-#result_list tbody tr.selected td { background: #fff5f5 !important; }
+#result_list tbody tr.selected td { background: #fef2f2 !important; }
+
+/* General link colors (non-nav) */
+#content-main a:not(.button):not(.addlink):not(.deletelink),
+#content-main a:visited:not(.button):not(.addlink):not(.deletelink) {
+  color: #dc2626 !important;
+  text-decoration: none !important;
+}
+
+/* ── Breakdown builder pills (custom JS UI) ───────────────── */
+.sb-pill {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+  background: #f1f5f9 !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+}
+
+.sb-builder {
+  display: inline-flex !important;
+  flex-wrap: wrap !important;
+  gap: 5px !important;
+  align-items: center !important;
+  padding: 2px 0 !important;
+}
