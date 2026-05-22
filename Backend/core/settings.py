@@ -12,7 +12,10 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 DEBUG      = env('DEBUG')
 
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['localhost', '127.0.0.1'])
+ALLOWED_HOSTS = env.list(
+    'ALLOWED_HOSTS',
+    default=['localhost', '127.0.0.1'],
+)
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -33,6 +36,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
+    # CorsMiddleware must be as high as possible, before CommonMiddleware
     'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -44,9 +48,14 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:5173']
+    default=['http://localhost:5173'],
 )
 CORS_ALLOW_CREDENTIALS = True
+
+CSRF_TRUSTED_ORIGINS = env.list(
+    'CSRF_TRUSTED_ORIGINS',
+    default=['http://localhost:5173'],
+)
 
 ROOT_URLCONF     = 'core.urls'
 WSGI_APPLICATION = 'core.wsgi.application'
@@ -144,7 +153,3 @@ BIGSHIP_ACCESS_KEY = env('BIGSHIP_ACCESS_KEY', default='')
 
 RAZORPAY_KEY_ID     = env('RAZORPAY_KEY_ID',     default='')
 RAZORPAY_KEY_SECRET = env('RAZORPAY_KEY_SECRET', default='')
-
-# ── Custom Admin ──────────────────────────────────────────────────────────────
-# Point Django admin to our custom AdminSite subclass
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
