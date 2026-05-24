@@ -74,26 +74,20 @@
     const existing_qtys = parseBreakdown(inputEl.value);
 
     const builder = document.createElement('div');
-    builder.className = 'sb-builder';
-    builder.style.cssText = 'display:inline-flex;flex-wrap:wrap;gap:5px;align-items:center;padding:2px 0;';
+    builder.className = 'sb-builder d-flex flex-wrap align-items-center mt-1';
 
     members.forEach(function (size) {
       const pill = document.createElement('span');
-      pill.className    = 'sb-pill';
+      pill.className    = 'sb-pill badge badge-light border d-inline-flex align-items-center mr-1 mb-1';
       pill.dataset.size = size;
-      pill.style.cssText = [
-        'display:inline-flex', 'align-items:center', 'gap:3px',
-        'background:#f3f4f6', 'border:1px solid #d1d5db',
-        'border-radius:6px', 'padding:2px 7px', 'font-size:12px',
-      ].join(';');
 
       const lbl = document.createElement('span');
-      lbl.textContent   = size + ':';
-      lbl.style.cssText = 'font-weight:600;color:#374151;white-space:nowrap;';
+      lbl.textContent = size + ':';
+      lbl.className   = 'mr-1 font-weight-bold';
 
       const sel = document.createElement('select');
-      sel.className = 'sb-qty';
-      sel.style.cssText = 'border:none;background:transparent;font-size:12px;font-weight:700;color:#111827;cursor:pointer;padding:0 2px;outline:none;max-width:40px;';
+      sel.className = 'sb-qty form-control form-control-sm p-0 border-0 bg-transparent font-weight-bold';
+      sel.style.cssText = 'height:auto;width:auto;min-width:36px;max-width:48px;cursor:pointer;';
 
       for (let i = 0; i <= 5; i++) {
         const opt       = document.createElement('option');
@@ -105,10 +99,8 @@
       }
 
       sel.addEventListener('change', function () {
-        // Sync to the hidden input
         const str = buildBreakdownString(builder);
         inputEl.value = str;
-        // Also sync label field in the same row
         const row      = inputEl.closest('tr, .form-row, div');
         const labelInp = row ? row.querySelector('input[name*="label"]') : null;
         if (labelInp) labelInp.value = str;
@@ -144,11 +136,10 @@
     const nameInput = document.getElementById('id_name');
     if (!nameInput || document.getElementById('sb-from-select')) return;
 
-    // Make name read-only
+    // Make name read-only — styled as a disabled Bootstrap field
     nameInput.readOnly = true;
-    nameInput.style.background = '#f9fafb';
-    nameInput.style.color      = '#9ca3af';
-    nameInput.style.cursor     = 'not-allowed';
+    nameInput.classList.add('bg-light', 'text-muted');
+    nameInput.style.cursor = 'not-allowed';
 
     // Parse existing name to pre-select From/To when editing
     const existingName = nameInput.value.trim();
@@ -161,13 +152,8 @@
 
     function makeSelect(id, preselect) {
       const sel = document.createElement('select');
-      sel.id    = id;
-      sel.style.cssText = [
-        'border:1px solid #d1d5db', 'border-radius:6px',
-        'padding:6px 10px', 'font-size:13px',
-        'background:#fff', 'cursor:pointer',
-        'min-width:100px', 'font-family:inherit',
-      ].join(';');
+      sel.id        = id;
+      sel.className = 'form-control form-control-sm';
       const blank       = document.createElement('option');
       blank.value       = '';
       blank.textContent = '— select —';
@@ -182,18 +168,28 @@
       return sel;
     }
 
-    function makeLabel(text) {
-      const lbl = document.createElement('label');
-      lbl.textContent   = text;
-      lbl.style.cssText = 'font-weight:600;font-size:13px;color:#374151;margin-right:4px;';
-      return lbl;
-    }
-
+    // Bootstrap 4 input-group: [From] [select] [To] [select]
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-bottom:8px;';
+    wrapper.className = 'input-group input-group-sm mb-2';
+    wrapper.style.maxWidth = '340px';
+
+    const fromPrepend = document.createElement('div');
+    fromPrepend.className = 'input-group-prepend';
+    const fromLabel = document.createElement('span');
+    fromLabel.className   = 'input-group-text';
+    fromLabel.textContent = 'From';
+    fromPrepend.appendChild(fromLabel);
 
     const fromSel = makeSelect('sb-from-select', existingFrom);
-    const toSel   = makeSelect('sb-to-select',   existingTo);
+
+    const toPrepend = document.createElement('div');
+    toPrepend.className = 'input-group-prepend input-group-append';
+    const toLabel = document.createElement('span');
+    toLabel.className   = 'input-group-text';
+    toLabel.textContent = 'To';
+    toPrepend.appendChild(toLabel);
+
+    const toSel = makeSelect('sb-to-select', existingTo);
 
     fromSel.addEventListener('change', function () {
       updateNameField();
@@ -204,9 +200,9 @@
       refreshAllBreakdownBuilders();
     });
 
-    wrapper.appendChild(makeLabel('From:'));
+    wrapper.appendChild(fromPrepend);
     wrapper.appendChild(fromSel);
-    wrapper.appendChild(makeLabel('To:'));
+    wrapper.appendChild(toPrepend);
     wrapper.appendChild(toSel);
 
     nameInput.parentNode.insertBefore(wrapper, nameInput);
