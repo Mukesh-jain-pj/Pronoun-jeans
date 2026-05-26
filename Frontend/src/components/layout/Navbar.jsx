@@ -30,8 +30,12 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
 
         {/* Logo */}
-        <Link to="/" className="text-2xl font-black tracking-tighter text-gray-900 dark:text-zinc-100">
-          PRONOUN<span className="text-accent">.</span>
+        <Link to="/" className="flex items-center">
+          <img
+            src="https://res.cloudinary.com/dvs95yf9s/image/upload/v1779774242/Screenshot_2026-05-26_at_11.12.34_AM-removebg-preview_ukte3f.png"
+            alt="Pronoun Jeans"
+            className="h-16 w-auto dark:[filter:brightness(0)_invert(1)]"
+          />
         </Link>
 
         {/* Desktop nav links */}
