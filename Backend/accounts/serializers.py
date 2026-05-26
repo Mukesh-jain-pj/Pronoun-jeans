@@ -36,6 +36,7 @@ class RegisterSerializer(serializers.ModelSerializer):
         fields = ['email', 'password', 'company_name', 'phone_number', 'gst_number']
 
     def create(self, validated_data):
+        validated_data['username'] = validated_data['email']
         return CustomUser.objects.create_user(**validated_data)
 
 
