@@ -24,13 +24,13 @@ class IsVerifiedB2B(BasePermission):
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsVerifiedB2B]
+    permission_classes = [AllowAny]
     queryset           = Category.objects.all()
     serializer_class   = CategorySerializer
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = [IsVerifiedB2B]
+    permission_classes = [AllowAny]
     serializer_class   = ProductSerializer
     lookup_field     = 'slug'
     filter_backends  = [filters.SearchFilter]

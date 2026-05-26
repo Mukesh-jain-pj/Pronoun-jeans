@@ -30,8 +30,14 @@ const Login = () => {
       } else {
         navigate(from || '/', { replace: true });
       }
-    } catch {
-      setError('Invalid email or password. Please try again.');
+    } catch (err) {
+      const data       = err.response?.data;
+      const backendMsg = data?.non_field_errors?.[0] || data?.detail;
+      if (err.response?.status === 400 && backendMsg) {
+        setError(backendMsg);
+      } else {
+        setError('Invalid email or password. Please try again.');
+      }
     } finally {
       setLoading(false);
     }

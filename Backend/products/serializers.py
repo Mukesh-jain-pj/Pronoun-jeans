@@ -76,6 +76,14 @@ class ProductVariationSerializer(serializers.ModelSerializer):
             return obj.color_palette.hex_code
         return '#CCCCCC'
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        if not (request and request.user and request.user.is_authenticated):
+            for field in ('set_price', 'b2b_price', 'per_piece_price', 'mrp', 'mrp_per_piece', 'margin_percentage'):
+                data[field] = None
+        return data
+
 
 class ProductSerializer(serializers.ModelSerializer):
     variations     = ProductVariationSerializer(many=True, read_only=True)

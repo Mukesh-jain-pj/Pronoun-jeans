@@ -18,6 +18,15 @@ class B2BTokenObtainPairSerializer(TokenObtainPairSerializer):
             token['agent_code'] = None
         return token
 
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        user = self.user
+        if not (user.is_verified_b2b or user.is_agent or user.is_staff):
+            raise serializers.ValidationError(
+                'Your account is pending verification. Contact us at pronounjeans@gmail.com.'
+            )
+        return data
+
 
 class UserSerializer(serializers.ModelSerializer):
     email           = serializers.EmailField(read_only=True)
