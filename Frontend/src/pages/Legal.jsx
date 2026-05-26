@@ -48,7 +48,7 @@ const PRIVACY_SECTIONS = [
   },
   {
     id: 'rights', title: 'Your Rights',
-    body: `You have the right to access, correct, or request deletion of your business data at any time. To exercise these rights, contact us at pronoun.india@gmail.com. We will respond to all valid requests within 7 working days.`,
+    body: `You have the right to access, correct, or request deletion of your business data at any time. To exercise these rights, contact us at pronounjeans@gmail.com. We will respond to all valid requests within 7 working days.`,
   },
 ];
 
@@ -59,7 +59,7 @@ const REFUND_SECTIONS = [
   },
   {
     id: 'process', title: 'Return Process',
-    body: `To initiate a return, email pronoun.india@gmail.com with your Order ID, a description of the issue, and supporting images. Our quality team will review your claim within 3 business days. Approved returns must be shipped back in original packaging.`,
+    body: `To initiate a return, email pronounjeans@gmail.com with your Order ID, a description of the issue, and supporting images. Our quality team will review your claim within 3 business days. Approved returns must be shipped back in original packaging.`,
   },
   {
     id: 'refunds', title: 'Refunds',
@@ -125,8 +125,8 @@ const Legal = ({ page = 'terms' }) => {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-6 shadow-sm mt-6">
             <p className="text-gray-600 dark:text-zinc-400 text-sm leading-relaxed">
               Questions about this policy? Contact us at{' '}
-              <a href="mailto:pronoun.india@gmail.com" className="text-accent hover:underline font-semibold">
-                pronoun.india@gmail.com
+              <a href="mailto:pronounjeans@gmail.com" className="text-accent hover:underline font-semibold">
+                pronounjeans@gmail.com
               </a>{' '}
               or call <a href="tel:+919375043100" className="text-accent hover:underline font-semibold">+91 93750 43100</a>.
             </p>

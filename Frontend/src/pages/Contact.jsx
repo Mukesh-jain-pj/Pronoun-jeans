@@ -35,11 +35,11 @@ const Contact = () => {
                 </div>
                 <div>
                   <p className="text-gray-900 dark:text-zinc-100 text-sm font-semibold">Address</p>
-                  <p className="text-gray-500 dark:text-zinc-400 text-sm mt-0.5 leading-relaxed">
+                  <a href="https://maps.app.goo.gl/s9NX16aYkiNnHcfr6" target="_blank" rel="noopener noreferrer" className="text-gray-500 dark:text-zinc-400 hover:text-accent text-sm mt-0.5 leading-relaxed block transition-colors">
                     Pronoun Jeans Pvt. Ltd.<br />
                     Textile Market, Ring Road<br />
-                    Ahmedabad, Gujarat — 380001
-                  </p>
+                    Ahmedabad, Gujarat — 380002
+                  </a>
                 </div>
               </div>
 
@@ -61,8 +61,8 @@ const Contact = () => {
                 </div>
                 <div>
                   <p className="text-gray-900 dark:text-zinc-100 text-sm font-semibold">Email</p>
-                  <a href="mailto:pronoun.india@gmail.com" className="text-gray-500 dark:text-zinc-400 hover:text-accent text-sm mt-0.5 block transition-colors">
-                    pronoun.india@gmail.com
+                  <a href="mailto:pronounjeans@gmail.com" className="text-gray-500 dark:text-zinc-400 hover:text-accent text-sm mt-0.5 block transition-colors">
+                    pronounjeans@gmail.com
                   </a>
                 </div>
               </div>

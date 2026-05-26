@@ -62,7 +62,9 @@ const Footer = () => (
           <ul className="space-y-3">
             <li className="flex items-start gap-2.5 text-sm text-gray-500 dark:text-zinc-400">
               <MapPin className="w-4 h-4 text-accent mt-0.5 shrink-0" />
-              Pronoun Jeans, Ahmedabad, Gujarat — 380001
+              <a href="https://maps.app.goo.gl/s9NX16aYkiNnHcfr6" target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">
+                Pronoun Jeans, Ahmedabad, Gujarat — 380002
+              </a>
             </li>
             <li>
               <a href="tel:+919375043100" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
@@ -71,9 +73,9 @@ const Footer = () => (
               </a>
             </li>
             <li>
-              <a href="mailto:pronoun.india@gmail.com" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
+              <a href="mailto:pronounjeans@gmail.com" className="flex items-center gap-2.5 text-sm text-gray-500 dark:text-zinc-400 hover:text-accent transition-colors">
                 <Mail className="w-4 h-4 text-accent shrink-0" />
-                pronoun.india@gmail.com
+                pronounjeans@gmail.com
               </a>
             </li>
           </ul>
