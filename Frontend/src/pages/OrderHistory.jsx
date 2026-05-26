@@ -15,9 +15,11 @@ const STATUS_STYLES = {
   CANCELLED: 'bg-red-500/15    text-red-600     dark:text-red-400',
 };
 
+const STATUS_FALLBACK = 'bg-gray-500/15 text-gray-600 dark:text-gray-400';
+
 const StatusPill = ({ status }) => (
-  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${STATUS_STYLES[status] || STATUS_STYLES.PENDING}`}>
-    {status?.replace(/_/g, ' ')}
+  <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${STATUS_STYLES[status] ?? STATUS_FALLBACK}`}>
+    {status?.replace(/_/g, ' ') ?? 'UNKNOWN'}
   </span>
 );
 
@@ -92,10 +94,14 @@ const OrderCard = ({ order, onTrack }) => {
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
           {order.items.map(item => (
             <div key={item.id} className="text-sm">
-              <p className="text-gray-900 dark:text-zinc-100 font-semibold leading-snug">{item.variation.product_name}</p>
+              <p className="text-gray-900 dark:text-zinc-100 font-semibold leading-snug">
+                {item.variation?.product_name ?? '—'}
+              </p>
               <p className="text-gray-500 dark:text-zinc-400 text-xs mt-0.5">
-                {item.quantity} × {item.variation.size}
-                {item.variation.color_name && <span className="ml-1 text-gray-400 dark:text-zinc-500">/ {item.variation.color_name}</span>}
+                {item.quantity} × {item.variation?.size ?? '—'}
+                {item.variation?.color_name && (
+                  <span className="ml-1 text-gray-400 dark:text-zinc-500">/ {item.variation.color_name}</span>
+                )}
               </p>
               <p className="text-accent text-xs font-semibold mt-0.5">₹{parseFloat(item.price).toFixed(2)}/pc</p>
             </div>

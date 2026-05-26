@@ -3,6 +3,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 from .models import CustomUser, Address
 from .serializers import (
@@ -25,6 +27,20 @@ class IsAgent(BasePermission):
 
 class B2BTokenObtainPairView(TokenObtainPairView):
     serializer_class = B2BTokenObtainPairSerializer
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        refresh_token = request.data.get('refresh')
+        if not refresh_token:
+            return Response({'error': 'Refresh token required.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            RefreshToken(refresh_token).blacklist()
+        except TokenError:
+            return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'message': 'Logged out successfully.'}, status=status.HTTP_200_OK)
 
 
 class RegisterView(generics.CreateAPIView):

@@ -68,6 +68,23 @@ def _compute_subtotal(cart_items):
     )
 
 
+def _validate_cart_moq(cart_items):
+    """Returns an error string if any product is below its MOQ, else None."""
+    totals = {}
+    for item in cart_items:
+        product = item.variation.product
+        if product.pk not in totals:
+            totals[product.pk] = {'name': product.name, 'moq': product.moq, 'qty': 0}
+        totals[product.pk]['qty'] += item.quantity
+    for data in totals.values():
+        if data['qty'] < data['moq']:
+            return (
+                f"Total quantity for {data['name']} ({data['qty']} sets) is below "
+                f"the minimum order quantity of {data['moq']} sets."
+            )
+    return None
+
+
 def _resolve_coupon(coupon_code, subtotal):
     if not coupon_code:
         return None, Decimal('0')
@@ -160,17 +177,32 @@ class CartItemDetailView(APIView):
     @transaction.atomic
     def patch(self, request, pk):
         try:
-            item = CartItem.objects.select_related('cart', 'variation').get(pk=pk, cart__user=request.user)
+            item = CartItem.objects.select_related('cart', 'variation__product').get(pk=pk, cart__user=request.user)
         except CartItem.DoesNotExist:
             return Response({'error': 'Cart item not found.'}, status=status.HTTP_404_NOT_FOUND)
 
-        quantity = int(request.data.get('quantity', 1))
+        try:
+            quantity = int(request.data.get('quantity', 1))
+        except (TypeError, ValueError):
+            return Response({'error': 'quantity must be a whole number.'}, status=status.HTTP_400_BAD_REQUEST)
+
         if quantity <= 0:
             item.delete()
         else:
             if quantity > item.variation.stock_quantity:
                 return Response(
                     {'error': f'Only {item.variation.stock_quantity} sets available for {item.variation.sku}.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            # MOQ check: total qty for this product after update must still meet MOQ
+            product   = item.variation.product
+            other_qty = CartItem.objects.filter(
+                cart=item.cart, variation__product=product,
+            ).exclude(pk=item.pk).aggregate(total=Sum('quantity'))['total'] or 0
+            new_total = other_qty + quantity
+            if new_total < product.moq:
+                return Response(
+                    {'error': f'Total quantity for {product.name} must be at least {product.moq} sets (would be {new_total} after this change).'},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             item.quantity = quantity
@@ -331,6 +363,10 @@ class DirectUPICheckoutView(APIView):
         if not cart_items.exists():
             return Response({'error': 'Cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        moq_error = _validate_cart_moq(cart_items)
+        if moq_error:
+            return Response({'error': moq_error}, status=status.HTTP_400_BAD_REQUEST)
+
         # ── Compute totals ──
         subtotal           = _compute_subtotal(cart_items)
         coupon, coupon_pct = _resolve_coupon(coupon_code, subtotal)
@@ -457,6 +493,10 @@ class RazorpayCreateOrderView(APIView):
         cart_items = cart.items.all()
         if not cart_items.exists():
             return Response({'error': 'Cart is empty.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        moq_error = _validate_cart_moq(cart_items)
+        if moq_error:
+            return Response({'error': moq_error}, status=status.HTTP_400_BAD_REQUEST)
 
         subtotal           = _compute_subtotal(cart_items)
         coupon, coupon_pct = _resolve_coupon(coupon_code, subtotal)

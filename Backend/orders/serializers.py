@@ -34,15 +34,19 @@ class CartItemSerializer(serializers.ModelSerializer):
     variation_id = serializers.PrimaryKeyRelatedField(
         queryset=ProductVariation.objects.all(), source='variation', write_only=True
     )
+    unavailable = serializers.SerializerMethodField()
 
     class Meta:
         model  = CartItem
-        fields = ['id', 'variation', 'variation_id', 'quantity']
+        fields = ['id', 'variation', 'variation_id', 'quantity', 'unavailable']
+
+    def get_unavailable(self, obj):
+        return obj.variation_id is None
 
     def validate(self, data):
         variation = data.get('variation')
         quantity  = data.get('quantity')
-        if quantity > 0 and quantity < variation.product.moq:
+        if variation and quantity and quantity > 0 and quantity < variation.product.moq:
             raise serializers.ValidationError(
                 f"Quantity must be 0 or >= MOQ ({variation.product.moq}) for this product."
             )

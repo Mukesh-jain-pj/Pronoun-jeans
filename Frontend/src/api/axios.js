@@ -23,7 +23,8 @@ api.interceptors.response.use(
       requestUrl.includes('auth/token') || requestUrl.includes('auth/logout');
 
     if (status === 401 && !isAuthEndpoint) {
-      localStorage.clear();
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
       window.location.replace('/login');
     }
 

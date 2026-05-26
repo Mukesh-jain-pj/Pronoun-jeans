@@ -172,22 +172,57 @@ const QtyControl = ({ value, saving, onDecrement, onIncrement, onDirectChange })
 );
 
 const useQtyUpdate = (showToast, fetchCart) => {
-  const timerRef = useRef({});
+  const timerRef    = useRef({});
+  const abortRef    = useRef({});
+  const rollbackRef = useRef({});
+  const mountedRef  = useRef(true);
   const [saving, setSaving] = useState({});
-  const scheduleUpdate = useCallback((cartItemId, newQty) => {
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      Object.values(timerRef.current).forEach(clearTimeout);
+      Object.values(abortRef.current).forEach(ctrl => ctrl.abort());
+    };
+  }, []);
+
+  const scheduleUpdate = useCallback((cartItemId, newQty, rollbackFn) => {
+    // Keep only the FIRST rollback in a debounce sequence (pre-debounce server state)
+    if (!rollbackRef.current[cartItemId]) {
+      rollbackRef.current[cartItemId] = rollbackFn;
+    }
     clearTimeout(timerRef.current[cartItemId]);
+    abortRef.current[cartItemId]?.abort();
+    delete abortRef.current[cartItemId];
+
     timerRef.current[cartItemId] = setTimeout(async () => {
+      if (!mountedRef.current) return;
+      const ctrl     = new AbortController();
+      abortRef.current[cartItemId] = ctrl;
+      const rollback = rollbackRef.current[cartItemId];
+      delete rollbackRef.current[cartItemId];
+
       setSaving(s => ({ ...s, [cartItemId]: true }));
       try {
-        await api.patch(`orders/cart/items/${cartItemId}/`, { quantity: newQty });
-        fetchCart();
+        await api.patch(
+          `orders/cart/items/${cartItemId}/`,
+          { quantity: newQty },
+          { signal: ctrl.signal },
+        );
+        if (mountedRef.current) fetchCart();
       } catch (err) {
-        showToast(err.response?.data?.error || 'Failed to update quantity.', 'error');
+        if (err.code === 'ERR_CANCELED' || err.name === 'CanceledError') return;
+        if (mountedRef.current) {
+          rollback?.();
+          showToast(err.response?.data?.error || 'Failed to update quantity.', 'error');
+        }
       } finally {
-        setSaving(s => ({ ...s, [cartItemId]: false }));
+        if (mountedRef.current) setSaving(s => ({ ...s, [cartItemId]: false }));
       }
     }, 600);
   }, [showToast, fetchCart]);
+
   return { saving, scheduleUpdate };
 };
 
@@ -215,9 +250,27 @@ const ProductThumb = ({ src, alt, className = '' }) => {
 // ── Cart Row ──────────────────────────────────────────────────────────────────
 
 const CartRow = ({ item, index, onQtyChange, saving, imageMap }) => {
-  const { id, variation, quantity } = item;
+  const { id, variation, quantity, unavailable } = item;
   const price = parseFloat(variation?.b2b_price ?? 0);
   const thumb = imageMap[variation?.sku] ?? null;
+
+  if (unavailable) {
+    return (
+      <tr className="border-b border-gray-100 dark:border-white/5 bg-red-50/40 dark:bg-red-500/5">
+        <td className="px-6 py-4" colSpan={6}>
+          <div className="flex items-center gap-2 text-red-500 dark:text-red-400 text-sm font-semibold">
+            <AlertCircle className="w-4 h-4 shrink-0" />
+            This SKU has been removed from the catalog and is no longer available.
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <button onClick={() => onQtyChange(id, 0)} className="text-gray-400 hover:text-red-500 transition-colors">
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </td>
+      </tr>
+    );
+  }
 
   return (
     <tr className={`border-b border-gray-100 dark:border-white/5 ${index % 2 === 0 ? 'bg-gray-50/50 dark:bg-white/[0.015]' : 'bg-white dark:bg-transparent'}`}>
@@ -818,12 +871,18 @@ const Cart = () => {
   }, [showToast]);
 
   const handleQtyChange = useCallback((cartItemId, newQty) => {
-    if (newQty <= 0) { setItems(prev => prev.filter(i => i.id !== cartItemId)); scheduleUpdate(cartItemId, 0); setCouponData(null); return; }
-    setItems(prev => prev.map(i => i.id === cartItemId ? { ...i, quantity: newQty } : i));
-    scheduleUpdate(cartItemId, newQty); setCouponData(null);
+    let snapshot;
+    setItems(prev => {
+      snapshot = prev;
+      if (newQty <= 0) return prev.filter(i => i.id !== cartItemId);
+      return prev.map(i => i.id === cartItemId ? { ...i, quantity: newQty } : i);
+    });
+    scheduleUpdate(cartItemId, newQty, () => setItems(snapshot));
+    setCouponData(null);
   }, [scheduleUpdate]);
 
   const handleUpiConfirm = async () => {
+    if (items.some(i => i.unavailable)) { showToast('Remove unavailable items before checking out.', 'error'); return; }
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
     setUpiConfirming(true);
@@ -844,6 +903,7 @@ const Cart = () => {
   };
 
   const handleRazorpayCheckout = async () => {
+    if (items.some(i => i.unavailable)) { showToast('Remove unavailable items before checking out.', 'error'); return; }
     if (!shippingId) { showToast('Please select a shipping address.', 'error'); return; }
     if (!billingId)  { showToast('Please select a billing address.', 'error'); return; }
     setRazorpayChecking(true);
@@ -951,6 +1011,19 @@ const Cart = () => {
             <div className="md:hidden space-y-3">
               {items.map(item => {
                 const thumb = imageMap[item.variation?.sku] ?? null;
+                if (item.unavailable) {
+                  return (
+                    <div key={item.id} className="bg-red-50/60 dark:bg-red-500/5 rounded-2xl border border-red-200 dark:border-red-500/20 p-4 shadow-sm flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-red-500 dark:text-red-400 text-sm font-semibold">
+                        <AlertCircle className="w-4 h-4 shrink-0" />
+                        SKU removed — no longer available
+                      </div>
+                      <button onClick={() => handleQtyChange(item.id, 0)} className="text-gray-400 hover:text-red-500 transition-colors shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                }
                 return (
                   <div key={item.id} className="bg-white dark:bg-zinc-900 rounded-2xl border border-gray-200 dark:border-white/5 p-4 shadow-sm">
                     <div className="flex gap-3 mb-3">

@@ -44,7 +44,11 @@ class Cart(models.Model):
 
 class CartItem(models.Model):
     cart      = models.ForeignKey(Cart, on_delete=models.CASCADE, related_name='items')
-    variation = models.ForeignKey('products.ProductVariation', on_delete=models.CASCADE)
+    variation = models.ForeignKey(
+        'products.ProductVariation',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+    )
     quantity  = models.PositiveIntegerField(default=0)
 
     class Meta:
@@ -83,7 +87,7 @@ class Order(models.Model):
         SCREENSHOT = 'screenshot', 'Payment Screenshot'
         NONE       = 'none',       'No Proof (Manual Verification)'
 
-    user             = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name='orders')
+    user             = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='orders')
     shipping_address = models.ForeignKey('accounts.Address', null=True, blank=True, on_delete=models.SET_NULL, related_name='shipping_orders')
     billing_address  = models.ForeignKey('accounts.Address', null=True, blank=True, on_delete=models.SET_NULL, related_name='billing_orders')
     status           = models.CharField(max_length=30, choices=Status.choices, default=Status.PENDING)
@@ -159,7 +163,7 @@ class Order(models.Model):
 
 class OrderItem(models.Model):
     order     = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
-    variation = models.ForeignKey('products.ProductVariation', on_delete=models.PROTECT)
+    variation = models.ForeignKey('products.ProductVariation', on_delete=models.SET_NULL, null=True, blank=True)
     quantity  = models.PositiveIntegerField()
     price     = models.DecimalField(max_digits=10, decimal_places=2)
 

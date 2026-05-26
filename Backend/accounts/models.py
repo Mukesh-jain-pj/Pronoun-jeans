@@ -1,5 +1,5 @@
 from django.contrib.auth.models import AbstractUser
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Q
 
 
@@ -90,15 +90,16 @@ class Address(models.Model):
         ordering = ['-is_default_shipping', 'id']
 
     def save(self, *args, **kwargs):
-        if self.is_default_shipping:
-            Address.objects.filter(
-                user=self.user, is_default_shipping=True
-            ).exclude(pk=self.pk).update(is_default_shipping=False)
-        if self.is_default_billing:
-            Address.objects.filter(
-                user=self.user, is_default_billing=True
-            ).exclude(pk=self.pk).update(is_default_billing=False)
-        super().save(*args, **kwargs)
+        with transaction.atomic():
+            if self.is_default_shipping:
+                Address.objects.select_for_update().filter(
+                    user=self.user, is_default_shipping=True
+                ).exclude(pk=self.pk).update(is_default_shipping=False)
+            if self.is_default_billing:
+                Address.objects.select_for_update().filter(
+                    user=self.user, is_default_billing=True
+                ).exclude(pk=self.pk).update(is_default_billing=False)
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.address_line_1}, {self.city} — {self.user.email}"

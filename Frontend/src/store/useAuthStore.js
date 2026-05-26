@@ -10,10 +10,19 @@ const decodeToken = (token) => {
   }
 };
 
+const getInitialAuthState = () => {
+  const token = localStorage.getItem('accessToken');
+  if (!token) return { user: null, isAuthenticated: false, isAgent: false };
+  const decoded = decodeToken(token);
+  if (!decoded || decoded.exp * 1000 < Date.now()) {
+    localStorage.clear();
+    return { user: null, isAuthenticated: false, isAgent: false };
+  }
+  return { user: decoded, isAuthenticated: true, isAgent: decoded.is_agent ?? false };
+};
+
 export const useAuthStore = create((set, get) => ({
-  user:            decodeToken(localStorage.getItem('accessToken')),
-  isAuthenticated: !!localStorage.getItem('accessToken'),
-  isAgent:         decodeToken(localStorage.getItem('accessToken'))?.is_agent ?? false,
+  ...getInitialAuthState(),
 
   initAuth: () => {
     const token = localStorage.getItem('accessToken');

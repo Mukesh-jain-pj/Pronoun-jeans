@@ -8,10 +8,11 @@ import api from '../api/axios';
 import { useAuthStore } from '../store/useAuthStore';
 import { useCartStore } from '../store/useCartStore';
 
-const decodeHtml = (text) =>
-  text
-    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-    .replace(/&nbsp;/g, ' ').replace(/&quot;/g, '"').replace(/\\n/g, '\n');
+const decodeHtml = (text) => {
+  if (!text) return '';
+  const doc = new DOMParser().parseFromString(text, 'text/html');
+  return (doc.body.textContent ?? '').replace(/\\n/g, '\n');
+};
 
 const Toast = ({ onDone }) => {
   useEffect(() => { const t = setTimeout(onDone, 3000); return () => clearTimeout(t); }, [onDone]);

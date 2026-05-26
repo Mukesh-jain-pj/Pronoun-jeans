@@ -3,20 +3,35 @@ from django.views.decorators.cache import cache_page
 from django.views.decorators.vary import vary_on_headers
 from rest_framework import viewsets, filters
 from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 
 from .models import Category, Product, HeroSlide
 from .serializers import CategorySerializer, ProductSerializer
 
 
+class IsVerifiedB2B(BasePermission):
+    """Allows access only to verified B2B buyers, agents, and staff."""
+    message = 'B2B verification required to view wholesale prices.'
+
+    def has_permission(self, request, view):
+        user = request.user
+        return bool(
+            user and
+            user.is_authenticated and
+            (user.is_verified_b2b or user.is_agent or user.is_staff)
+        )
+
+
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset         = Category.objects.all()
-    serializer_class = CategorySerializer
+    permission_classes = [IsVerifiedB2B]
+    queryset           = Category.objects.all()
+    serializer_class   = CategorySerializer
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
-    serializer_class = ProductSerializer
+    permission_classes = [IsVerifiedB2B]
+    serializer_class   = ProductSerializer
     lookup_field     = 'slug'
     filter_backends  = [filters.SearchFilter]
     search_fields    = ['name', 'slug', 'variations__sku']

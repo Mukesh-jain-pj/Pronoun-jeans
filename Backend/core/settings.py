@@ -14,7 +14,7 @@ DEBUG      = env('DEBUG')
 
 ALLOWED_HOSTS = env.list(
     'ALLOWED_HOSTS',
-    default=['localhost', '127.0.0.1'],
+    default=['localhost', '127.0.0.1', 'pronoun-jeans.onrender.com'],
 )
 
 INSTALLED_APPS = [
@@ -30,6 +30,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'cloudinary',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'accounts',
     'products',
@@ -51,7 +52,11 @@ MIDDLEWARE = [
 # ── CORS ──────────────────────────────────────────────────────────────────────
 CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:5173'],
+    default=[
+        'http://localhost:5173',
+        'https://pronoun-jeans.vercel.app',
+        'https://www.pronounjeans.com',
+    ],
 )
 CORS_ALLOW_CREDENTIALS = True
 
@@ -138,13 +143,16 @@ REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
 }
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME':    timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME':   timedelta(days=7),
     'ROTATE_REFRESH_TOKENS':    True,
-    'BLACKLIST_AFTER_ROTATION': False,
+    'BLACKLIST_AFTER_ROTATION': True,
     'USER_ID_FIELD':            'id',
     'USER_ID_CLAIM':            'user_id',
 }

@@ -1,4 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useAuthStore } from './store/useAuthStore';
 import Navbar from './components/layout/Navbar';
 import Footer from './components/layout/Footer';
 import WhatsAppCTA from './components/ui/WhatsAppCTA';
@@ -25,12 +27,15 @@ import AgentCommissions  from './pages/agent/AgentCommissions';
 import AgentSampleOrders from './pages/agent/AgentSampleOrders';
 
 const ProtectedRoute = ({ children }) => {
+  const { isAuthenticated } = useAuthStore();
   const location = useLocation();
-  const token = localStorage.getItem('accessToken');
-  return token ? children : <Navigate to="/login" state={{ from: location }} replace />;
+  return isAuthenticated ? children : <Navigate to="/login" state={{ from: location }} replace />;
 };
 
 function App() {
+  const initAuth = useAuthStore(s => s.initAuth);
+  useEffect(() => { initAuth(); }, []);
+
   return (
     <BrowserRouter>
       <Routes>
