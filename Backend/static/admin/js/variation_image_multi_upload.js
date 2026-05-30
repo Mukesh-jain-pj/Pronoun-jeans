@@ -55,9 +55,5 @@
     addRowLink.parentNode.insertBefore(multiBtn, addRowLink);
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  window.addEventListener('load', init);
 })();
