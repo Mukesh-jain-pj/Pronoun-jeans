@@ -847,9 +847,10 @@ const Cart = () => {
 
   useEffect(() => {
     const cartUrl = impersonatedBuyer ? `orders/cart/?buyer_id=${impersonatedBuyer.id}` : 'orders/cart/';
+    const addrUrl = impersonatedBuyer ? `accounts/addresses/?buyer_id=${impersonatedBuyer.id}` : 'accounts/addresses/';
     Promise.all([
       api.get(cartUrl),
-      api.get('accounts/addresses/'),
+      api.get(addrUrl),
       api.get('orders/coupons/active/'),
     ]).then(([cartRes, addrRes, couponRes]) => {
       const cartItems = cartRes.data?.items ?? [];

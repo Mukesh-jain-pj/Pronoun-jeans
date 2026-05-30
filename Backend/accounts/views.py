@@ -76,7 +76,15 @@ class AddressListCreateView(generics.ListCreateAPIView):
     serializer_class   = AddressSerializer
 
     def get_queryset(self):
-        return Address.objects.filter(user=self.request.user)
+        user      = self.request.user
+        buyer_id  = self.request.query_params.get('buyer_id')
+        if user.is_agent and buyer_id:
+            try:
+                buyer = user.assigned_buyers.get(pk=buyer_id, is_verified_b2b=True)
+                return Address.objects.filter(user=buyer)
+            except Exception:
+                pass
+        return Address.objects.filter(user=user)
 
     def get_serializer_context(self):
         context = super().get_serializer_context()

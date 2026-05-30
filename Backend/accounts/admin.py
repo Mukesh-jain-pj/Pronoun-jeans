@@ -29,6 +29,7 @@ class CustomUserAdmin(UserAdmin):
         'email', 'company_name', 'phone_number', 'gst_number',
         'is_verified_b2b', 'is_agent', 'agent_can_order', 'assigned_agent', 'is_staff', 'date_joined',
     ]
+    readonly_fields = ['agent_can_order']
     list_filter   = ['is_verified_b2b', 'is_agent', 'is_staff', 'is_active', 'agent_can_order']
     search_fields = ['email', 'company_name', 'gst_number', 'phone_number']
     ordering      = ['-date_joined']
@@ -42,7 +43,7 @@ class CustomUserAdmin(UserAdmin):
             'description': (
                 'Set is_agent=True for agent accounts. '
                 'Use assigned_agent to map a buyer to their agent. '
-                'agent_can_order allows the agent to checkout on behalf of this buyer.'
+                'agent_can_order is read-only here — set by the buyer from their dashboard.'
             ),
         }),
     )
@@ -52,7 +53,7 @@ class CustomUserAdmin(UserAdmin):
             'fields': ('email', 'company_name', 'gst_number', 'phone_number', 'is_verified_b2b'),
         }),
         ('Agent', {
-            'fields': ('is_agent', 'assigned_agent', 'agent_can_order'),
+            'fields': ('is_agent', 'assigned_agent'),
         }),
     )
 
