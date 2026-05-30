@@ -261,10 +261,13 @@ class ProductAdmin(admin.ModelAdmin):
 
 
 class VariationImageInline(admin.TabularInline):
-    model   = VariationImage
-    extra   = 0
-    fields  = ['image', 'alt_text', 'order']
+    model    = VariationImage
+    extra    = 0
+    fields   = ['image', 'alt_text', 'order']
     ordering = ['order']
+
+    class Media:
+        js = ('admin/js/variation_image_multi_upload.js',)
 
 
 @admin.register(ProductVariation)
