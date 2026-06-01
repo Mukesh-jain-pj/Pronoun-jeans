@@ -106,8 +106,9 @@ class OrderSerializer(serializers.ModelSerializer):
     class Meta:
         model  = Order
         fields = [
-            'id', 'user', 'status', 'payment_method', 'payment_status',
+            'id', 'user', 'status', 'payment_method', 'payment_status', 'payment_plan',
             'total_amount', 'coupon_code', 'discount_amount', 'upi_discount', 'grand_total',
+            'amount_paid', 'balance_due',
             'shipping_address', 'billing_address',
             'courier_name', 'tracking_number', 'tracking_url',
             'items', 'created_at',
@@ -149,7 +150,7 @@ class SampleOrderSerializer(serializers.ModelSerializer):
     class Meta:
         model  = SampleOrder
         fields = [
-            'id', 'design_number', 'rate', 'date',
+            'id', 'design_number', 'rate', 'date', 'status',
             'buyer', 'buyer_email', 'buyer_company', 'buyer_name',
             'agent', 'agent_email', 'created_at',
         ]
