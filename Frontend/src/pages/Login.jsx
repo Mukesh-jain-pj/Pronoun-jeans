@@ -230,12 +230,11 @@ const RequestAccessModal = ({ onClose }) => {
             <div className="border-t border-gray-100 dark:border-white/5 pt-1" />
 
             <ModalPasswordInput
-              label="Set Password (optional)"
+              label="Set Password *"
               placeholder="Min. 8 characters"
               value={form.password} onChange={set('password')}
               show={showPassword} onToggle={() => setShowPassword(p => !p)}
               error={errors.password}
-              hint="Set a password now to log in immediately once approved. Leave blank and we'll set one for you."
             />
 
             <button type="submit" disabled={loading}

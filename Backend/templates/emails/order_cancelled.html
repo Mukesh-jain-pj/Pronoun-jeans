@@ -1,0 +1,58 @@
+{% extends "emails/base_email.html" %}
+{% load humanize %}
+{% block content %}
+
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#c62828;text-transform:uppercase;letter-spacing:1.5px;">Order Cancelled</p>
+<h1 style="margin:0 0 6px;font-size:26px;font-weight:700;color:#111111;line-height:1.2;">Your order has been cancelled</h1>
+<p style="margin:0 0 28px;font-size:14px;color:#999999;">Order #{{ order.id|stringformat:"05d" }} &bull; {{ order.updated_at|date:"N j, Y" }}</p>
+
+<p style="margin:0 0 28px;font-size:15px;color:#555555;line-height:1.7;">
+  Hi {% if order.user.first_name %}{{ order.user.first_name }}{% elif order.user.company_name %}{{ order.user.company_name }}{% else %}there{% endif %}, your order #{{ order.id|stringformat:"05d" }} has been cancelled.
+</p>
+
+<!-- Order summary -->
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="background:#fafafa;border:1px solid #eeeeee;border-radius:4px;margin:0 0 28px;">
+  <tr>
+    <td style="padding:20px 24px;">
+      <p style="margin:0 0 14px;font-size:12px;font-weight:700;color:#444444;text-transform:uppercase;letter-spacing:1px;">Cancelled items</p>
+      {% for item in items %}
+      <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="margin:0 0 8px;">
+        <tr>
+          <td style="font-size:14px;color:#333333;">{{ item.variation.product.name }} <span style="color:#aaaaaa;font-size:12px;">({{ item.variation.sku }})</span></td>
+          <td align="right" style="font-size:14px;color:#888888;white-space:nowrap;">{{ item.quantity }} sets</td>
+        </tr>
+      </table>
+      {% endfor %}
+      <hr style="border:none;border-top:1px solid #eeeeee;margin:14px 0;">
+      <table cellpadding="0" cellspacing="0" role="presentation" width="100%">
+        <tr>
+          <td style="font-size:13px;color:#888888;">Order total</td>
+          <td align="right" style="font-size:14px;color:#888888;">&#8377;{{ order.grand_total|floatformat:2 }}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+
+{% if order.amount_paid %}
+<!-- Refund notice -->
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="background:#fff8e1;border:1px solid #ffe082;border-radius:4px;margin:0 0 28px;">
+  <tr>
+    <td style="padding:18px 20px;">
+      <p style="margin:0 0 5px;font-size:13px;font-weight:700;color:#5d4037;">Regarding your payment</p>
+      <p style="margin:0;font-size:13px;color:#795548;line-height:1.6;">
+        If a payment was made, our team will process the refund. Please allow 5–7 business days for it to reflect. Reply to this email if you have any questions.
+      </p>
+    </td>
+  </tr>
+</table>
+{% endif %}
+
+<p style="margin:0 0 8px;font-size:15px;color:#555555;line-height:1.7;">
+  If you'd like to place a new order or have questions, we're happy to help.
+</p>
+<p style="margin:0;font-size:13px;color:#aaaaaa;line-height:1.6;">
+  Contact us at <a href="mailto:pronounjeans@gmail.com" style="color:#c62828;text-decoration:none;">pronounjeans@gmail.com</a>
+</p>
+
+{% endblock %}

@@ -6,8 +6,14 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
+from django.utils.http import urlsafe_base64_decode
+from django.utils.encoding import force_str
+from core.email_utils import (
+    send_password_reset_email,
+    send_onboarding_welcome_email,
+    send_request_access_received_email,
+    send_request_access_admin_email,
+)
 
 from .models import CustomUser, Address
 from .serializers import (
@@ -59,7 +65,9 @@ class RequestAccessView(APIView):
         serializer = RequestAccessSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        serializer.save()
+        user = serializer.save()
+        send_request_access_received_email(user)
+        send_request_access_admin_email(user)
         return Response(
             {'message': 'Access request submitted. Our team will contact you shortly.'},
             status=status.HTTP_201_CREATED,
@@ -173,12 +181,8 @@ class PasswordResetRequestView(APIView):
         if not email:
             return Response({'error': 'Email is required.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            user  = CustomUser.objects.get(email=email)
-            token = PasswordResetTokenGenerator().make_token(user)
-            uid   = urlsafe_base64_encode(force_bytes(user.pk))
-            # TODO: send email with reset link when email is configured
-            # reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}/"
-            _ = uid, token  # suppress unused warning until email is wired up
+            user = CustomUser.objects.get(email=email)
+            send_password_reset_email(user)
         except CustomUser.DoesNotExist:
             pass  # always return success — don't reveal whether email exists
         return Response({'message': 'If an account exists with that email, a reset link will be sent.'})
@@ -247,10 +251,11 @@ class AgentManualOnboardView(APIView):
         )
         user.set_unusable_password()
         user.save()
+        send_onboarding_welcome_email(user)
 
         return Response(
             {
-                'message':      f'Buyer {email} onboarded successfully. Ask them to use "Forgot Password" on the login page to set their password.',
+                'message':      f'Buyer {email} onboarded successfully. A welcome email with a password setup link has been sent to them.',
                 'buyer_id':     user.id,
                 'email':        user.email,
                 'company_name': user.company_name,

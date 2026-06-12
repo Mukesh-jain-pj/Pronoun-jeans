@@ -132,3 +132,22 @@ def restore_stock_on_cancellation(sender, instance, created, **kwargs):
         ProductVariation.objects.filter(pk=item.variation_id).update(
             stock_quantity=F('stock_quantity') + item.quantity
         )
+
+
+# ── Order status email notifications ─────────────────────────────────────────
+
+@receiver(post_save, sender='orders.Order')
+def send_order_status_notification(sender, instance, created, **kwargs):
+    if created:
+        return
+    prev = getattr(instance, '_prev_status', None)
+    if prev == instance.status:
+        return
+    from .models import Order
+    if instance.status not in (
+        Order.Status.APPROVED, Order.Status.SHIPPED,
+        Order.Status.DELIVERED, Order.Status.CANCELLED,
+    ):
+        return
+    from core.email_utils import send_order_status_email
+    send_order_status_email(instance)

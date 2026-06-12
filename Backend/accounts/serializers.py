@@ -59,7 +59,7 @@ class RequestAccessSerializer(serializers.Serializer):
     phone_number = serializers.CharField(max_length=15)
     gst_number   = serializers.CharField(max_length=15, required=False, allow_blank=True)
     agent_code   = serializers.CharField(max_length=20, required=False, allow_blank=True, write_only=True)
-    password     = serializers.CharField(min_length=8, required=False, allow_blank=True, write_only=True)
+    password     = serializers.CharField(min_length=8, write_only=True)
 
     def validate_email(self, value):
         value = value.strip().lower()
@@ -102,10 +102,7 @@ class RequestAccessSerializer(serializers.Serializer):
             is_verified_b2b = False,
             assigned_agent  = assigned_agent,
         )
-        if password:
-            user.set_password(password)
-        else:
-            user.set_unusable_password()
+        user.set_password(password)
         user.save()
         return user
 

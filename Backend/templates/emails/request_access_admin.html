@@ -1,0 +1,50 @@
+{% extends "emails/base_email.html" %}
+{% block content %}
+
+<p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#c62828;text-transform:uppercase;letter-spacing:1.5px;">New Application</p>
+<h1 style="margin:0 0 20px;font-size:26px;font-weight:700;color:#111111;line-height:1.2;">New B2B access request</h1>
+
+<p style="margin:0 0 24px;font-size:15px;color:#555555;line-height:1.7;">
+  A new buyer has submitted a B2B access request. Review and approve their account from the admin panel.
+</p>
+
+<!-- Applicant details -->
+<table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="background:#fafafa;border:1px solid #eeeeee;border-radius:4px;margin:0 0 28px;">
+  <tr>
+    <td style="padding:22px 24px;">
+      <p style="margin:0 0 14px;font-size:12px;font-weight:700;color:#444444;text-transform:uppercase;letter-spacing:1px;">Applicant details</p>
+      <table cellpadding="0" cellspacing="0" role="presentation" width="100%">
+        <tr>
+          <td style="padding:7px 0;font-size:13px;color:#888888;width:110px;vertical-align:top;">Company</td>
+          <td style="padding:7px 0;font-size:14px;font-weight:700;color:#111111;">{{ user.company_name|default:"—" }}</td>
+        </tr>
+        <tr>
+          <td style="padding:7px 0;font-size:13px;color:#888888;vertical-align:top;">Email</td>
+          <td style="padding:7px 0;font-size:14px;color:#333333;"><a href="mailto:{{ user.email }}" style="color:#c62828;text-decoration:none;">{{ user.email }}</a></td>
+        </tr>
+        <tr>
+          <td style="padding:7px 0;font-size:13px;color:#888888;vertical-align:top;">Phone</td>
+          <td style="padding:7px 0;font-size:14px;color:#333333;">{{ user.phone_number|default:"—" }}</td>
+        </tr>
+        {% if user.gst_number %}
+        <tr>
+          <td style="padding:7px 0;font-size:13px;color:#888888;vertical-align:top;">GST</td>
+          <td style="padding:7px 0;font-size:14px;color:#333333;">{{ user.gst_number }}</td>
+        </tr>
+        {% endif %}
+        {% if user.assigned_agent %}
+        <tr>
+          <td style="padding:7px 0;font-size:13px;color:#888888;vertical-align:top;">Via Agent</td>
+          <td style="padding:7px 0;font-size:14px;color:#333333;">{{ user.assigned_agent.email }}</td>
+        </tr>
+        {% endif %}
+      </table>
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0;font-size:13px;color:#aaaaaa;line-height:1.6;">
+  Log in to the admin panel → Accounts → Users to approve this account and set their B2B status.
+</p>
+
+{% endblock %}

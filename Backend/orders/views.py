@@ -13,6 +13,7 @@ from django.utils import timezone
 from .invoice import generate_invoice_pdf
 
 from .models import Cart, CartItem, Order, OrderItem, Commission, SampleOrder, Coupon
+from core.email_utils import send_order_placed_email
 from .tracking_service import get_bigship_tracking
 from products.models import Product, ProductVariation
 from accounts.models import Address, AgentPayment
@@ -460,6 +461,7 @@ class DirectUPICheckoutView(APIView):
             )
 
         cart.items.all().delete()
+        send_order_placed_email(order)
 
         # ── Response message based on proof type ──
         messages = {
