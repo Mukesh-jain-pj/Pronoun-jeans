@@ -1,4 +1,7 @@
+import logging
 from rest_framework import generics, status
+
+logger = logging.getLogger(__name__)
 from rest_framework.permissions import AllowAny, IsAuthenticated, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -184,7 +187,9 @@ class PasswordResetRequestView(APIView):
             user = CustomUser.objects.get(email=email)
             send_password_reset_email(user)
         except CustomUser.DoesNotExist:
-            pass  # always return success — don't reveal whether email exists
+            pass
+        except Exception:
+            logger.exception('Password reset email failed for %s', email)
         return Response({'message': 'If an account exists with that email, a reset link will be sent.'})
 
 
