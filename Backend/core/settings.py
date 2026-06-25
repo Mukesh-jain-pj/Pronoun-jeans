@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     'cloudinary',
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
+    'anymail',
     'corsheaders',
     'accounts',
     'products',
@@ -167,16 +168,11 @@ BIGSHIP_ACCESS_KEY = env('BIGSHIP_ACCESS_KEY', default='')
 RAZORPAY_KEY_ID     = env('RAZORPAY_KEY_ID',     default='')
 RAZORPAY_KEY_SECRET = env('RAZORPAY_KEY_SECRET', default='')
 
-# ── Email (Gmail SMTP) ────────────────────────────────────────────────────────
-EMAIL_BACKEND       = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST          = 'smtp.gmail.com'
-EMAIL_PORT          = 587
-EMAIL_USE_TLS       = True
-EMAIL_TIMEOUT       = 15
-EMAIL_HOST_USER     = env('EMAIL_HOST_USER',     default='')
-EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD', default='')
-DEFAULT_FROM_EMAIL  = env('DEFAULT_FROM_EMAIL',  default='Pronoun Jeans <pronounjeans@gmail.com>')
-FRONTEND_URL        = env('FRONTEND_URL',        default='http://localhost:5173')
+# ── Email (Resend via Anymail) ────────────────────────────────────────────────
+EMAIL_BACKEND      = 'anymail.backends.resend.EmailBackend'
+ANYMAIL            = {'RESEND_API_KEY': env('RESEND_API_KEY', default='')}
+DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL', default='Pronoun Jeans <onboarding@resend.dev>')
+FRONTEND_URL       = env('FRONTEND_URL', default='http://localhost:5173')
 
 # ══════════════════════════════════════════════════════════════════════════════
 # JAZZMIN — Premium Django Admin UI

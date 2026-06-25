@@ -331,7 +331,7 @@ const ForgotPasswordModal = ({ onClose }) => {
             </div>
             <h4 className="text-gray-900 dark:text-zinc-100 font-bold mb-2">Check your inbox</h4>
             <p className="text-gray-500 dark:text-zinc-400 text-sm mb-6">
-              If an account exists with that email, a password reset link has been sent.
+              A password reset link has been sent to <span className="font-medium text-gray-700 dark:text-zinc-300">{email}</span>. Check your spam folder if you don't see it.
             </p>
             <button onClick={onClose} className="bg-accent hover:bg-red-700 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition-colors">
               Done
