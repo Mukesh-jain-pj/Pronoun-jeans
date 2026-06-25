@@ -1,4 +1,5 @@
 import logging
+import threading
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
 from django.conf import settings
@@ -12,20 +13,23 @@ ADMIN_EMAIL = 'pronounjeans@gmail.com'
 
 
 def _send(subject, template, context, to, reply_to=None):
-    try:
-        html_body  = render_to_string(template, context)
-        recipients = [to] if isinstance(to, str) else to
-        msg = EmailMultiAlternatives(
-            subject    = subject,
-            body       = subject,
-            from_email = settings.DEFAULT_FROM_EMAIL,
-            to         = recipients,
-            reply_to   = [reply_to] if reply_to else None,
-        )
-        msg.attach_alternative(html_body, 'text/html')
-        msg.send(fail_silently=False)
-    except Exception:
-        logger.exception('Failed to send email "%s" to %s', subject, to)
+    def _do_send():
+        try:
+            html_body  = render_to_string(template, context)
+            recipients = [to] if isinstance(to, str) else to
+            msg = EmailMultiAlternatives(
+                subject    = subject,
+                body       = subject,
+                from_email = settings.DEFAULT_FROM_EMAIL,
+                to         = recipients,
+                reply_to   = [reply_to] if reply_to else None,
+            )
+            msg.attach_alternative(html_body, 'text/html')
+            msg.send(fail_silently=False)
+        except Exception:
+            logger.exception('Failed to send email "%s" to %s', subject, to)
+
+    threading.Thread(target=_do_send, daemon=True).start()
 
 
 def _make_reset_link(user):
